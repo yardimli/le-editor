@@ -92,4 +92,36 @@ class TextEditor
                     ? $segment['after'] : $segment['before'])->implode('');
         })->implode('');
     }
+
+    /** Map new chunk boundaries back to immutable imported text, including deleted passages. */
+    public function originalChunks(string $original, array $inputs): array
+    {
+        $segments = $this->diff($original, implode('', $inputs));
+        $mapped = array_fill(0, count($inputs), '');
+        $boundaries = [];
+        $offset = 0;
+        foreach ($inputs as $input) {
+            $boundaries[] = [$offset, $offset + mb_strlen($input)];
+            $offset += mb_strlen($input);
+        }
+        $position = 0;
+        foreach ($segments as $segment) {
+            $afterLength = mb_strlen($segment['after']);
+            $beforeLength = mb_strlen($segment['before']);
+            foreach ($boundaries as $index => [$start, $end]) {
+                if ($afterLength === 0) {
+                    if (($position >= $start && $position < $end)
+                        || ($position === $offset && $index === count($inputs) - 1)) {
+                        $mapped[$index] .= $segment['before'];
+                    }
+                } elseif ($position < $end && $position + $afterLength > $start) {
+                    $from = (int) floor(max(0, $start - $position) * $beforeLength / $afterLength);
+                    $to = (int) floor(min($afterLength, $end - $position) * $beforeLength / $afterLength);
+                    $mapped[$index] .= mb_substr($segment['before'], $from, $to - $from);
+                }
+            }
+            $position += $afterLength;
+        }
+        return $mapped;
+    }
 }

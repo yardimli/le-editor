@@ -26,6 +26,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/books/{book}/state', [BookController::class, 'state'])->name('books.state');
     Route::get('/books/{book}/runs/{run}', [BookController::class, 'history'])->name('books.history');
     Route::patch('/books/{book}', [BookController::class, 'update'])->name('books.update');
+    Route::put('/books/{book}/chunks/{chunk}/text', [BookController::class, 'saveChunk']);
+    Route::post('/books/{book}/learning/dismiss', [BookController::class, 'dismissLearning']);
     Route::put('/books/{book}/text', [BookController::class, 'save'])->name('books.text');
     Route::post('/books/{book}/run', [BookController::class, 'run'])->middleware('throttle:10,1')->name('books.run');
     Route::post('/books/{book}/cancel', [BookController::class, 'cancel'])->name('books.cancel');

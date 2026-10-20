@@ -1,11 +1,20 @@
 export function startBrowserQueue({ $, request, t, window, document, setInterval }) {
     const dialog = $('#queue-dialog');
-    let polling = false, stepping = false, leaving = false, offline = false, generation = 0;
+    let polling = false, stepping = false, leaving = false, offline = false, generation = 0, lastKind = null;
     function render(queue) {
         const task = queue.task;
-        $('#queue-notice').classList.toggle('hidden', !queue.paused && !offline);
+        const learning = !queue.paused && task?.kind === 'learning';
+        $('#header-ai-spinner').classList.toggle('hidden', !learning);
+        $('#header-ai-cancel').classList.toggle('hidden', !learning);
+        if (learning) $('#header-ai-status').textContent = t('queue_learning');
+        else if (queue.paused) $('#header-ai-status').textContent = t('queue_paused_short');
+        else if (!task && !queue.working && lastKind === 'learning') {
+            $('#header-ai-status').textContent = t(queue.learning_failed ? 'learning_failed' : 'prompt_updated');
+            lastKind = null;
+        }
+        $('#queue-notice').classList.toggle('hidden', (!queue.paused || !!window.leBook) && !offline);
         $('#queue-notice-text').textContent = t(queue.paused ? 'queue_paused' : 'queue_connection');
-        if (!queue.paused && (task || queue.working)) {
+        if (!queue.paused && task?.kind === 'metadata') {
             if (!dialog.open) dialog.showModal();
             $('#queue-task').textContent = task ? `${t(`queue_${task.kind}`)} · ${task.title}` : t('queue_waiting');
             const progress = $('#queue-progress');
@@ -17,6 +26,8 @@ export function startBrowserQueue({ $, request, t, window, document, setInterval
                 $('#queue-count').textContent = t('queue_working');
             }
         } else if (dialog.open) dialog.close();
+        if (task) lastKind = task.kind;
+        window.leQueueState = queue;
         window.dispatchEvent(new Event('queue-updated'));
     }
     async function tick() {
@@ -38,6 +49,7 @@ export function startBrowserQueue({ $, request, t, window, document, setInterval
                         $('#queue-error').textContent = error.message;
                         $('#queue-notice').classList.remove('hidden');
                         $('#queue-notice-text').textContent = t('queue_connection');
+                        $('#header-ai-status').textContent = t('queue_connection');
                     }
                 }).finally(() => { stepping = false; });
             }
@@ -48,7 +60,7 @@ export function startBrowserQueue({ $, request, t, window, document, setInterval
         } finally { polling = false; }
     }
     dialog.addEventListener('cancel', event => event.preventDefault());
-    $('#queue-cancel').addEventListener('click', async event => {
+    const cancel = async event => {
         event.target.disabled = true;
         generation++;
         try {
@@ -57,7 +69,9 @@ export function startBrowserQueue({ $, request, t, window, document, setInterval
             $('#queue-error').textContent = '';
         } catch (error) { $('#queue-error').textContent = error.message; }
         finally { event.target.disabled = false; }
-    });
+    };
+    $('#queue-cancel').addEventListener('click', cancel);
+    $('#header-ai-cancel').addEventListener('click', cancel);
     $('#queue-resume').addEventListener('click', async event => {
         event.target.disabled = true;
         generation++;
@@ -73,6 +87,7 @@ export function startBrowserQueue({ $, request, t, window, document, setInterval
     window.addEventListener('pageshow', () => { leaving = false; tick(); });
     document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
     window.addEventListener('online', () => { offline = false; tick(); });
+    window.addEventListener('queue-poll', () => { offline = false; tick(); });
     setInterval(tick, 2000);
     tick();
 }

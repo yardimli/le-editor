@@ -9,24 +9,29 @@
     <div id="metadata-message" class="notice {{ $book->metadata_status === 'complete' ? 'hidden' : '' }}">{{ __('editor.metadata_'.$book->metadata_status) }}</div>
     <div>
         <section class="min-w-0">
+            <nav class="chunk-navigation" aria-label="{{ __('editor.chunk_navigation') }}">
+                <button type="button" class="button-secondary" id="previous-chunk">← {{ __('editor.previous_chunk') }}</button>
+                <div class="chunk-navigation-progress"><progress id="book-progress" max="100" value="0" aria-label="{{ __('editor.processed') }}"></progress><span id="book-progress-label" class="hint"></span></div>
+                <button type="button" id="chunk-position" class="button-secondary" aria-label="{{ __('editor.jump_chunk') }}">1 / 1</button>
+                <button type="button" class="button-secondary" id="next-chunk">{{ __('editor.next_chunk') }} →</button>
+            </nav>
             <div class="manuscript-toolbar">
                 <div class="flex gap-1 flex-wrap" role="tablist">
-                    @foreach(['review', 'manual', 'preview', 'history'] as $tab)
+                    @foreach(['review', 'preview', 'history'] as $tab)
                         <button class="tab-button {{ $tab === 'review' ? 'active' : '' }}" data-tab="{{ $tab }}" role="tab" aria-selected="{{ $tab === 'review' ? 'true' : 'false' }}">{{ __('editor.'.$tab) }}</button>
                     @endforeach
                 </div>
-                <div class="flex gap-2"><button class="quiet-button" id="prev-change" aria-label="{{ __('editor.previous') }}">↑</button><button class="quiet-button" id="next-change" aria-label="{{ __('editor.next') }}">↓</button></div>
+                <span id="chunk-edit-count" class="hint"></span>
             </div>
+            <p id="chunk-unprocessed" class="notice hidden">{{ __('editor.chunk_not_processed') }}</p>
             <div class="flex flex-wrap gap-4 text-xs muted px-4 py-3" id="review-counts" aria-live="polite"></div>
-            <div id="run-status" class="notice hidden"><span></span><button class="button-secondary ml-3 hidden" id="retry-run">{{ __('editor.retry') }}</button></div>
-            <div class="manuscript-sheet">
-                <div id="save-indicator" class="save-indicator hidden" role="status"><span>{{ __('editor.saved') }}</span><button type="button" class="underline ml-2 hidden" id="save-now">{{ __('editor.save_now') }}</button></div>
-                <div data-panel="review" id="diff-view" class="manuscript-text"></div>
-                <div data-panel="manual" class="hidden">
-                    <p class="notice text-sm">{{ __('editor.manual_hint') }}</p>
-                    <textarea id="manuscript-input" class="manuscript-text" aria-label="{{ __('editor.manual') }}" spellcheck="true">{{ $manuscript }}</textarea>
+            <div class="manuscript-sheet chunk-sheet">
+                <div id="save-indicator" class="save-indicator" role="status"><span>{{ __('editor.saved') }}</span><button type="button" class="underline ml-2 hidden" id="save-now">{{ __('editor.save_now') }}</button></div>
+                <div data-panel="review" class="chunk-workspace">
+                    <section><h2 class="text-lg mb-3">{{ __('editor.review') }}</h2><div id="diff-view" class="manuscript-text"></div></section>
+                    <section><h2 class="text-lg mb-3">{{ __('editor.edit_chunk') }}</h2><p class="hint mb-3">{{ __('editor.chunk_edit_hint') }}</p><div id="chunk-editor"></div></section>
                 </div>
-                <div data-panel="preview" class="hidden manuscript-text whitespace-pre-wrap" id="clean-preview">{{ $manuscript }}</div>
+                <div data-panel="preview" class="hidden manuscript-text whitespace-pre-wrap" id="clean-preview"></div>
                 <div data-panel="history" class="hidden space-y-8">
                     <section><h2>{{ __('editor.runs') }}</h2>@foreach($runs as $run)<details class="history-item"><summary>#{{ $run->id }} · {{ __('editor.'.$run->status) }} · {{ $run->created_at->format('d.m.Y H:i') }}</summary><p class="hint">{{ $run->model }} · {{ $run->chunk_size }} {{ __('editor.words') }} · {{ $run->tokens }} {{ __('editor.tokens') }} · ${{ $run->cost }}</p><pre class="whitespace-pre-wrap text-sm mt-3">{{ $run->prompt }}</pre><a class="text-accent text-sm inline-block mt-3" href="{{ route('books.history', [$book, $run]) }}">{{ __('editor.review') }} →</a></details>@endforeach</section>
                     <section><h2>{{ __('editor.manuscript_versions') }}</h2>@foreach($versions as $version)<form class="history-item flex justify-between items-center gap-3" method="POST" action="{{ route('books.restore', $book) }}" data-confirm="{{ __('editor.restore_confirm') }}">@csrf<input type="hidden" name="kind" value="manuscript"><input type="hidden" name="id" value="{{ $version->id }}"><span>#{{ $version->id }} · {{ $version->created_at->format('d.m.Y H:i') }}</span><button class="quiet-button text-accent">{{ __('editor.restore') }}</button></form>@endforeach</section>
@@ -35,6 +40,19 @@
             </div>
         </section>
     </div>
+    <dialog id="jump-dialog" class="editor-dialog" aria-labelledby="jump-title">
+        <h2 id="jump-title">{{ __('editor.jump_chunk') }}</h2>
+        <form id="jump-form" class="space-y-4 mt-5">
+            <label for="jump-number">{{ __('editor.chunk') }}</label><input id="jump-number" type="number" min="1" required step="1">
+            <div class="flex gap-3"><button class="button">{{ __('editor.go') }}</button><button type="button" class="button-secondary" id="close-jump">{{ __('editor.setup_cancel') }}</button></div>
+        </form>
+    </dialog>
+    <footer class="work-footer" aria-label="{{ __('editor.editorial_progress') }}">
+        <div class="page-shell work-footer-inner">
+            <div class="work-footer-status"><span id="work-label" role="status">{{ __('editor.no_run') }}</span><progress id="work-progress" max="100" value="0" aria-label="{{ __('editor.editorial_progress') }}"></progress><span id="work-error" class="hint" role="alert"></span></div>
+            <div class="flex gap-2 shrink-0"><button type="button" id="pause-work" class="button-secondary hidden">{{ __('editor.pause') }}</button><button type="button" id="resume-work" class="button hidden">{{ __('editor.resume') }}</button><button type="button" id="restart-work" class="button-secondary hidden">{{ __('editor.restart') }}</button></div>
+        </div>
+    </footer>
     <dialog id="setup-dialog" aria-labelledby="setup-title" aria-describedby="setup-hint" class="editor-dialog setup-dialog">
         <h2 id="setup-title">{{ __('editor.setup_title') }}</h2>
         <p id="setup-hint" class="muted mt-3 mb-6">{{ __('editor.setup_hint') }}</p>
@@ -61,7 +79,7 @@
                     <div><label for="book-context">{{ __('editor.context') }}</label><textarea id="book-context" name="context" rows="3" maxlength="10000" placeholder="{{ __('editor.context_hint') }}">{{ $book->context }}</textarea></div>
                     <label class="check-label"><input name="learn" type="checkbox" @checked($book->learn)> {{ __('editor.learn') }}</label>
                 </form>
-                <p class="hint mt-3" id="learning-status" role="status"></p><button class="quiet-button hidden text-accent" id="retry-learning">{{ __('editor.retry_learning') }}</button>
+                <p class="hint mt-3" id="learning-status" role="status"></p><button class="quiet-button hidden text-accent" id="retry-learning">{{ __('editor.learn_now') }}</button>
             </section>
             <section class="panel">
                 <p class="eyebrow">02 / {{ __('editor.run') }}</p>
@@ -89,6 +107,6 @@
 @push('scripts')
 <script>
 window.leStrings = @js(__('editor'));
-window.leBook = @js(['id' => $book->id, 'version' => $book->version, 'promptVersion' => $book->prompt_version, 'locale' => app()->getLocale(), 'text' => $manuscript, 'needsSetup' => $runs->isEmpty()]);
+window.leBook = @js(['id' => $book->id, 'version' => $book->version, 'promptVersion' => $book->prompt_version, 'locale' => app()->getLocale(), 'needsSetup' => $runs->isEmpty()]);
 </script>
 @endpush

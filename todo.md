@@ -87,3 +87,30 @@ Current validation: 49 PHP tests passed (218 assertions), plus 4 JavaScript sche
 - [x] Update the editable prompt immediately when presets are selected or deselected.
 - [x] Save settings when starting; remove the separate Save and Combine buttons.
 - [x] Allow Escape/Cancel dismissal and ignore backdrop clicks; show submission errors inside the dialog.
+
+## Branding
+
+- [x] Generated compact book-and-pen site logo (256 x 256 PNG).
+- [x] Added square 16/32px favicons, ICO fallback and 180px Apple touch icon.
+- [x] Connected branding to the shared layout and application logo component.
+
+## Uninterrupted review
+
+- [x] Accept/reject decisions never resume a cancelled editorial run or override a paused queue.
+- [x] Show prompt-learning progress and cancel control in the header instead of the editing modal.
+- [x] Add a narrow 40px sticky status band with notifications on the right.
+- [x] Limit the header and page content to 1280px.
+
+## Chunk workspace and optional learning
+
+- [x] Paginate the manuscript by chunk; load only the selected chunk in state requests.
+- [x] Add previous/next, clickable chunk number/jump dialog, and processed-book progress.
+- [x] Replace the editorial modal with a persistent footer and Pause / Resume / Restart.
+- [x] Review processed chunks while later chunks run; refresh newly processed visible chunks.
+- [x] Preserve immutable chunk source, author revisions and independent chunk version checks.
+- [x] Add Quill plain-text editing alongside interactive diff controls and autosave.
+- [x] Count successful AI edits per chunk; carry counts across passes with unchanged boundaries.
+- [x] Collect feedback without automatic LLM calls; offer learning after 21 decisions with a dismissible hint.
+- [x] Verify chunk concurrency, manual revision mapping, optional learning, UI build and migrations.
+
+Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript tests passed, production assets built and migration applied. Browser-verified simultaneous Quill editing/review, saving before review actions, direct chunk navigation, pending labels and live completion updates using a temporary isolated fixture. No paid completion calls. Preview: `docs/chunk-editor-preview.png`.

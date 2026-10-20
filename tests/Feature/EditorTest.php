@@ -119,6 +119,7 @@ class EditorTest extends TestCase
         foreach (['metadata', 'learning'] as $kind) {
             $book->update(['metadata_status' => $kind === 'metadata' ? 'pending' : 'complete']);
             if ($kind === 'learning') {
+                $book->update(['learning_requested' => true]);
                 Feedback::create(['book_id' => $book->id, 'before' => 'old', 'after' => 'new', 'decision' => 'accepted']);
             }
             Http::fake(['*/chat/completions' => function () use ($queue, $book, $kind) {
@@ -279,15 +280,14 @@ class EditorTest extends TestCase
         Queue::assertNotPushed(EditChunk::class);
     }
 
-    public function test_manual_save_tracks_revision_archives_suggestions_and_rejects_stale_writes(): void
+    public function test_pre_run_manual_save_tracks_revision_and_rejects_stale_writes(): void
     {
-        $book = $this->book(); $run = $this->runWithChanges($book);
+        $book = $this->book();
         $this->actingAs($book->user)->putJson("/books/{$book->id}/text", ['text' => "  Manual text.\n", 'version' => 1])->assertOk()->assertJson(['version' => 2]);
         $this->assertSame("  Manual text.\n", $book->fresh()->text);
         $this->assertNull($book->fresh()->active_run_id);
         $this->assertDatabaseHas('manuscript_versions', ['book_id' => $book->id, 'reason' => 'manual', 'text' => "  Manual text.\n"]);
         $this->putJson("/books/{$book->id}/text", ['text' => 'stale', 'version' => 1])->assertConflict();
-        $this->assertDatabaseHas('editing_runs', ['id' => $run->id]);
     }
 
     public function test_decisions_queue_learning_and_reject_stale_or_foreign_chunks(): void
@@ -300,6 +300,115 @@ class EditorTest extends TestCase
         $this->patchJson("/books/{$book->id}/chunks/{$chunk->id}", ['index' => 2, 'status' => 'rejected', 'version' => 1])->assertConflict();
         $other = $this->runWithChanges($this->book())->chunks()->first();
         $this->patchJson("/books/{$book->id}/chunks/{$other->id}", ['index' => 2, 'status' => 'accepted', 'version' => 2])->assertNotFound();
+    }
+
+    public function test_reviewing_a_cancelled_run_does_not_resume_it_or_unpause_the_queue(): void
+    {
+        $book = $this->book();
+        $run = $this->runWithChanges($book);
+        $run->update(['status' => 'cancelled']);
+        app(BrowserQueue::class)->pause($book->user_id);
+        $chunk = $run->chunks()->first();
+        $this->actingAs($book->user)->patchJson("/books/{$book->id}/chunks/{$chunk->id}",
+            ['index' => 2, 'status' => 'accepted', 'version' => 1])->assertOk();
+        $this->assertSame('cancelled', $run->fresh()->status);
+        $this->assertTrue($book->user->fresh()->llm_paused);
+        $this->assertDatabaseHas('feedback', ['book_id' => $book->id, 'status' => 'awaiting']);
+        $this->postJson("/books/{$book->id}/learning/retry")->assertOk();
+        $this->assertFalse($book->user->fresh()->llm_paused);
+        $this->assertSame('cancelled', $run->fresh()->status);
+    }
+
+    public function test_chunk_can_be_saved_and_reviewed_while_other_chunks_run(): void
+    {
+        $book = $this->book(); $run = $this->runWithChanges($book);
+        $run->update(['status' => 'running', 'total_chunks' => 2]);
+        $pending = $run->chunks()->create(['position' => 1, 'source' => 'Untouched.']);
+        $chunk = $run->chunks()->first();
+        $this->actingAs($book->user)->putJson("/books/{$book->id}/chunks/{$chunk->id}/text", [
+            'text' => "New sentence.\n\nBetter paragraph. Added.", 'revision' => $chunk->revision,
+        ])->assertOk()->assertJsonPath('chunk.revision', 2);
+        $this->assertSame('running', $run->fresh()->status);
+        $this->assertSame($chunk->source, $chunk->fresh()->source);
+        $this->assertSame('pending', $pending->fresh()->status);
+        $this->assertDatabaseCount('chunk_revisions', 1);
+        $this->putJson("/books/{$book->id}/chunks/{$chunk->id}/text", ['text' => 'stale', 'revision' => 1])->assertConflict();
+        $this->putJson("/books/{$book->id}/chunks/{$pending->id}/text", ['text' => 'early', 'revision' => 1])->assertConflict();
+        $chunk->refresh();
+        $index = collect($chunk->segments)->search(fn ($s) => $s['status'] === 'pending' && $s['type'] === 'change');
+        $this->assertNotFalse($index);
+        $this->patchJson("/books/{$book->id}/chunks/{$chunk->id}", [
+            'index' => $index, 'status' => 'accepted', 'revision' => $chunk->revision,
+        ])->assertOk();
+        $this->assertSame('running', $run->fresh()->status);
+        $this->assertSame($run->id, $book->fresh()->active_run_id);
+    }
+
+    public function test_state_returns_only_requested_chunk_and_counts_processed_chunks(): void
+    {
+        $book = $this->book(); $run = $this->runWithChanges($book);
+        $run->update(['total_chunks' => 2, 'status' => 'running']);
+        $pending = $run->chunks()->create(['position' => 1, 'source' => 'Next chunk.']);
+        $this->actingAs($book->user)->getJson("/books/{$book->id}/state?chunk=2")
+            ->assertOk()->assertJsonPath('chunk.id', $pending->id)->assertJsonPath('chunk_count', 2)
+            ->assertJsonPath('run.completed_chunks', 1)->assertJsonMissingPath('run.chunks')->assertJsonMissingPath('text');
+        $this->getJson("/books/{$book->id}/state?chunk=999")->assertJsonPath('chunk.id', $pending->id);
+        $this->getJson("/books/{$book->id}/state?chunk=0")->assertUnprocessable();
+    }
+
+    public function test_empty_chunk_author_edit_is_saved_without_losing_the_original(): void
+    {
+        $book = $this->book(); $run = $this->runWithChanges($book); $chunk = $run->chunks()->first();
+        $this->actingAs($book->user)->putJson("/books/{$book->id}/chunks/{$chunk->id}/text",
+            ['text' => '', 'revision' => 1])->assertOk();
+        $this->assertSame('', app(TextEditor::class)->rendered($book->fresh()));
+        $this->assertSame($book->original_text, $chunk->fresh()->source);
+        $this->assertSame($run->id, $book->fresh()->active_run_id);
+    }
+
+    public function test_learning_hint_after_twenty_decisions_is_optional_and_dismissible(): void
+    {
+        Http::preventStrayRequests();
+        $book = $this->book();
+        for ($i = 0; $i < 20; $i++) {
+            Feedback::create(['book_id' => $book->id, 'before' => "old $i", 'after' => "new $i",
+                'decision' => 'accepted', 'status' => 'awaiting']);
+        }
+        $this->actingAs($book->user)->getJson("/books/{$book->id}/state")->assertJsonPath('learning_hint', false);
+        Feedback::create(['book_id' => $book->id, 'before' => 'last', 'after' => 'final',
+            'decision' => 'accepted', 'status' => 'awaiting']);
+        $this->getJson("/books/{$book->id}/state")->assertJsonPath('learning_hint', true);
+        $this->postJson('/queue/step')->assertOk()->assertJsonPath('task', null);
+        Http::assertNothingSent();
+        $this->postJson("/books/{$book->id}/learning/dismiss")->assertOk();
+        $this->getJson("/books/{$book->id}/state")->assertJsonPath('learning_hint', false);
+        $this->catalog();
+        Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop',
+            'message' => ['content' => 'A learned prompt.']]]])]);
+        $this->postJson("/books/{$book->id}/learning/retry")->assertOk();
+        $this->postJson('/queue/step')->assertOk();
+        $this->assertSame('A learned prompt.', $book->fresh()->prompt);
+        $this->assertSame(21, Feedback::where('book_id', $book->id)->where('status', 'complete')->count());
+        $this->assertFalse($book->fresh()->learning_requested);
+    }
+
+    public function test_ai_edit_counter_and_original_survive_a_same_size_rerun(): void
+    {
+        $this->catalog(); app(OpenRouter::class)->models();
+        $book = $this->book(); $run = $this->runWithChanges($book);
+        $original = $run->chunks()->first();
+        $original->update(['ai_edit_count' => 2]);
+        $this->actingAs($book->user)->postJson("/books/{$book->id}/run",
+            ['model' => 'test/paid', 'chunk_size' => 2500, 'version' => 1])->assertOk();
+        $new = $book->fresh()->activeRun->chunks()->first();
+        $this->assertSame($original->source, $new->source);
+        $this->assertSame(2, $new->ai_edit_count);
+        $this->assertSame("New sentence.\n\nAnother paragraph.", $new->input_text);
+        Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop',
+            'message' => ['content' => "New sentence.\n\nAnother paragraph."]]]])]);
+        $this->postJson('/queue/step')->assertOk();
+        $this->assertSame(3, $new->fresh()->ai_edit_count);
+        $this->assertSame($original->source, $new->fresh()->source);
     }
 
     public function test_cancel_preserves_completed_work_and_prevents_further_calls(): void
@@ -381,7 +490,7 @@ class EditorTest extends TestCase
     public function test_prompt_learning_keeps_presets_unchanged_and_versions_book_prompt(): void
     {
         Queue::fake(); $this->catalog(); $this->seed();
-        $book = $this->book();
+        $book = $this->book(); $book->update(['learning_requested' => true]);
         Feedback::create(['book_id' => $book->id, 'before' => 'old', 'after' => 'new', 'decision' => 'rejected']);
         Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => 'Preserve this phrasing.']]]])]);
         (new LearnPrompt($book->id, app(BrowserQueue::class)->claim($book->user_id)))->handle(app(OpenRouter::class));

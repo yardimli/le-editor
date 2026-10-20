@@ -12,10 +12,12 @@ A Turkish-first, bilingual AI book editor built with Laravel 10, Breeze, Blade, 
 - Cached model discovery using the server key. Free models are excluded and output prices are filtered by environment limits.
 - Queued editing in adjustable word-sized chunks (default 2,500), with paragraph boundaries preserved where possible. The model returns plain prose; `jfcherng/php-diff` computes changes.
 - Inline deletions/insertions, accept/reject/undo controls, pending-change navigation and clean preview. Keyboard shortcuts: Alt+Up / Alt+Down.
-- A modal progress dialog with explicit cancellation. Completed suggestions remain; untouched chunks retain their source text. Failed or cancelled runs can resume.
-- Each accept/reject decision can trigger prompt learning. Updates are serialized per book and versioned; shared presets are never silently changed.
+- A persistent editorial footer with processed-chunk progress and Pause, Resume and Restart controls. Completed suggestions remain; untouched chunks retain their source text. Metadata inference still uses a modal.
+- Optional prompt learning: review decisions are collected without LLM calls. After more than 20 suggestions, a dismissible header hint offers to update the prompt. Learning runs only when requested, in batches of up to 50 decisions; shared presets remain unchanged.
 - Reruns materialize accepted suggestions, archive the old review and use the latest prompt with a newly chosen model/chunk size.
-- Manual editing with a floating save indicator, 10-second debounced autosave, Save now and optimistic concurrency checks.
+- Chunk navigation with Previous/Next, a clickable 1/N jump control and processed-book progress. Only the selected chunk is fetched.
+- Quill plain-text editing alongside interactive diffs, with 10-second debounced autosave, Save now and per-chunk optimistic concurrency checks. Review completed chunks while later chunks run.
+- Immutable original chunk text, author revision snapshots and an AI-edit counter per chunk.
 - Manuscript snapshots, prompt restoration and read-only historical reviews.
 - DOCX exports with genuine `w:ins` / `w:del` revisions. Approved AI changes and manual edits are included by default. Pending suggestions can be included for export only; rejected suggestions are excluded.
 - Cost estimates, reported run usage, private file storage, ownership checks and deletion controls.
@@ -230,8 +232,8 @@ An authenticated, visible app page polls `/queue/state` and sends `/queue/step` 
 
 - Upload inference sends the first 2,000 words to infer title/language.
 - Editing sends one pending chunk and saves its text, diff and progress.
-- Prompt learning processes one pending review decision and versions the book prompt.
-- A shared modal shows a spinner and chunk progress where available, with a cancel button. It cannot be dismissed with Escape.
+- Prompt learning processes requested batches of review decisions and versions the book prompt. Merely reviewing suggestions never schedules a learning call.
+- Metadata inference shows a modal. Editorial runs use the persistent footer, leaving the manuscript accessible. Requested prompt learning uses a header notification and cancel control.
 - Closing the tab, leaving the site or hiding all app tabs stops new steps. Returning, refreshing or logging back in resumes unfinished work automatically.
 - **Cancel** pauses the whole account's AI queue persistently, across tabs and logins. Completed results stay saved; unprocessed chunks stay unchanged. Use **Resume AI queue**, a book's retry button, or initiate a new AI action to resume.
 - An already-sent provider request can finish and be billed after closing a tab. Explicit cancellation invalidates its result, including if you resume before that response arrives.
@@ -279,7 +281,11 @@ API references: [OpenRouter models](https://openrouter.ai/docs/api/api-reference
 
 The imported text remains immutable. The working manuscript is a separate value. Each editing run snapshots its prompt, context, language, model and chunk size. Review decisions are stored on diff segments; accepted changes become the next working text when rerunning or manually editing.
 
-Manual editing begins with the accepted-text view. Its first changed save archives the active review and discards pending suggestions from that active view. This is explained before entering manual mode. Old reviews remain in history. Manual edits are stored as manuscript snapshots; exports compute cumulative revisions from the original import, including those manual edits. Export revision authors are labelled `LE Editor`; they are not a keystroke-by-keystroke audit trail.
+The chunk workspace shows the proposed text in Quill alongside the interactive diff. Pending suggestions appear in the editable text; rejected suggestions use their original wording. Typing does not pause work or archive the active review. Edits save after ten seconds, or immediately when navigating chunks or clicking a review control. Diff results refresh after saving; they are always compared with the immutable original source. Manually modifying a suggestion replaces that affected span with an accepted author revision. Unrelated pending/accepted/rejected decisions remain intact. A stale save produces a conflict without overwriting the draft.
+
+Each chunk has a `revision` and `ai_edit_count`. Only successfully committed model outputs increment the AI counter; manual edits do not. Restart opens setup and creates a new pass from accepted/manual text. With the same chunk size, boundaries, original text and counts are carried forward. Changing the chunk size creates new chunk identities/counters and maps their baselines back to the original imported text. Existing completed chunks are initialized with a count of one by the migration because older call counts were not recorded.
+
+Processed chunks remain editable while other chunks are running. Unprocessed chunks have a clear label and are read-only until their result arrives. Source snapshots, not rich-text HTML, are stored: Quill is restricted to plain text to match the DOCX import/export contract. Export includes accepted and manual edits by default, with pending suggestions included only when explicitly selected. Export revision authors are labelled `LE Editor`; they are not a keystroke-by-keystroke audit trail.
 
 A rerun discards pending/rejected suggestions from the new draft. Exporting pending suggestions never accepts them in the app. The original DOCX is retained privately until the book/account is deleted.
 
@@ -331,7 +337,7 @@ Any reverse proxy in front of Nginx must also allow long requests; otherwise cho
 
 ```sh
 php artisan test
-node --test tests/browser-queue.test.js
+node --test tests/*.test.js
 npm run build
 composer audit
 npm audit
@@ -366,4 +372,6 @@ The dependency audit reports known Laravel 10 advisories. The app rejects contro
 
 Tailwind 3's build-only dependency chain also has reported pattern-parser denial-of-service advisories. Builds operate on repository-owned templates; do not feed untrusted templates to the build process. Moving to Tailwind 4 is a separate toolchain upgrade.
 
-Reported run cost covers chunk-editing calls, not metadata or prompt-learning calls. Failed requests may still be billed. Prompt learning uses the book's selected model. No automatic budget enforcement or billing system is included. Manuscripts are capped at 20 MB upload / one million extracted characters; large histories and whole-document polling will need pagination and retention policies at scale.
+Reported run cost covers chunk-editing calls, not metadata or prompt-learning calls. Failed requests may still be billed. Prompt learning uses the book's selected model. No automatic budget enforcement or billing system is included. Manuscripts are capped at 20 MB upload / one million extracted characters; large histories and histories will need retention policies at scale; live polling already loads only the selected chunk.
+
+Quill is pinned to 2.0.2; the application uses plain-text input/output and does not use Quill HTML export. This avoids adding the HTML-export advisory reported for 2.0.3.

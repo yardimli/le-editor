@@ -57,13 +57,15 @@ class BrowserQueue
         });
     }
 
-    public function resume(int $userId): void
+    public function resume(int $userId, bool $resumeEditing = true): void
     {
-        DB::transaction(function () use ($userId) {
+        DB::transaction(function () use ($userId, $resumeEditing) {
             $user = User::lockForUpdate()->findOrFail($userId);
             $user->forceFill(['llm_paused' => false])->save();
-            EditingRun::whereIn('id', Book::where('user_id', $userId)->select('active_run_id'))
-                ->where('status', 'cancelled')->update(['status' => 'queued', 'error' => null]);
+            if ($resumeEditing) {
+                EditingRun::whereIn('id', Book::where('user_id', $userId)->select('active_run_id'))
+                    ->where('status', 'cancelled')->update(['status' => 'queued', 'error' => null]);
+            }
         });
     }
 
@@ -79,7 +81,7 @@ class BrowserQueue
             return ['kind' => 'editing', 'book_id' => $run->book_id, 'title' => $run->book->title,
                 'run_id' => $run->id, 'completed' => $run->completed_chunks, 'total' => $run->total_chunks];
         }
-        $feedback = Feedback::whereIn('book_id', (clone $books)->where('learn', true)->select('id'))
+        $feedback = Feedback::whereIn('book_id', (clone $books)->where('learn', true)->where('learning_requested', true)->select('id'))
             ->where('status', 'pending')->orderBy('id')->first();
         if ($feedback) {
             $book = Book::findOrFail($feedback->book_id);
@@ -92,6 +94,8 @@ class BrowserQueue
     {
         $user = User::findOrFail($userId);
         return ['paused' => (bool) $user->llm_paused,
+            'learning_failed' => Feedback::whereIn('book_id', Book::where('user_id', $userId)->select('id'))
+                ->where('status', 'failed')->count(),
             'working' => (bool) ($user->llm_lease_until?->isFuture()), 'task' => $this->next($userId)];
     }
 

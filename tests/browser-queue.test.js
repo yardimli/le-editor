@@ -39,11 +39,31 @@ function setup(initial) {
 const active = { paused: false, working: false,
     task: { kind: 'editing', title: 'Book', completed: 1, total: 3 } };
 
-test('shows progress, polls while waiting, and sends only one step at a time', async () => {
+test('prompt learning uses the header without interrupting review with a modal', async () => {
+    const ui = setup({ ...active, task: { kind: 'learning', title: 'Book' } });
+    await flush();
+    assert.equal(ui.$('#queue-dialog').open, false);
+    assert.equal(ui.$('#header-ai-status').textContent, 'queue_learning');
+    ui.finish({ ...active, task: null, learning_failed: 0 });
+    await flush();
+    assert.equal(ui.$('#header-ai-status').textContent, 'prompt_updated');
+    assert.equal(ui.$('#queue-dialog').open, false);
+});
+
+test('header cancellation pauses learning without opening the editing dialog', async () => {
+    const ui = setup({ ...active, task: { kind: 'learning', title: 'Book' } });
+    await flush();
+    await ui.$('#header-ai-cancel').emit('click', { target: {} });
+    assert.equal(ui.$('#header-ai-status').textContent, 'queue_paused_short');
+    assert.equal(ui.$('#queue-dialog').open, false);
+    assert.ok(ui.calls.includes('/queue/cancel'));
+});
+
+test('publishes progress without an editing modal and sends one step at a time', async () => {
     const ui = setup(active);
     await flush();
-    assert.equal(ui.$('#queue-dialog').open, true);
-    assert.equal(ui.$('#queue-progress').value, 33);
+    assert.equal(ui.$('#queue-dialog').open, false);
+    assert.equal(ui.window.leQueueState.task.completed, 1);
     await ui.tick();
     assert.equal(ui.calls.filter(url => url === '/queue/step').length, 1);
     ui.finish({ ...active, task: null });
@@ -81,7 +101,7 @@ test('cancel stays paused and ignores a late response until explicit resume', as
     assert.equal(ui.calls.filter(url => url === '/queue/step').length, 1);
     await ui.$('#queue-resume').emit('click', { target: {} });
     await flush();
-    assert.equal(ui.$('#queue-dialog').open, true);
+    assert.equal(ui.$('#queue-dialog').open, false);
     assert.equal(ui.calls.filter(url => url === '/queue/step').length, 2);
 });
 

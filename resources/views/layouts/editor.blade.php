@@ -5,12 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title ?? 'LE Editor' }}</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('favicon-32.png') }}">
+    <link rel="icon" type="image/png" sizes="16x16" href="{{ asset('favicon-16.png') }}">
+    <link rel="shortcut icon" href="{{ asset('favicon.ico') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ asset('apple-touch-icon.png') }}">
     <script>try { document.documentElement.classList.toggle('dark', (localStorage.getItem('le-theme') || @js(auth()->user()?->theme ?? 'light')) === 'dark'); } catch(e) {}</script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body>
     <header class="site-header">
-        <a href="{{ url('/') }}" class="brand"><span class="brand-mark">le.</span><span>LE EDITOR<small>{{ __('editor.tagline') }}</small></span></a>
+        <a href="{{ url('/') }}" class="brand"><img src="{{ asset('images/le-editor-logo.png') }}" width="44" height="44" alt="" class="shrink-0"><span>LE EDITOR<small>{{ __('editor.tagline') }}</small></span></a>
         <nav aria-label="Main" class="flex flex-wrap items-center gap-3 md:gap-6">
             @auth
                 <a href="{{ route('books.index') }}" @class(['nav-active' => request()->is('books*')])>{{ __('editor.library') }}</a>
@@ -30,6 +34,22 @@
             @endauth
         </nav>
     </header>
+    @auth
+    <div class="status-band">
+        <div class="page-shell status-band-inner">
+            <a href="{{ route('books.index') }}" class="text-xs font-semibold shrink-0">LE EDITOR</a>
+            <div class="header-notification">
+                <span id="header-ai-spinner" class="queue-spinner hidden" aria-hidden="true"></span>
+                <span id="header-ai-status" role="status" aria-live="polite"></span>
+                <span id="editor-learning-hint" class="hidden" title="{{ __('editor.learning_offer') }}">
+                    <button type="button" id="learn-from-feedback" class="quiet-button underline">{{ __('editor.learning_hint_short') }}</button>
+                    <button type="button" id="dismiss-learning" class="quiet-button ml-2" aria-label="{{ __('editor.dismiss') }}">×</button>
+                </span>
+                <button type="button" id="header-ai-cancel" class="quiet-button underline hidden">{{ __('editor.setup_cancel') }}</button>
+            </div>
+        </div>
+    </div>
+    @endauth
     <main class="page-shell">
         @if(session('status'))<div class="notice" role="status">{{ session('status') }}</div>@endif
         @if($errors->any())<div class="notice error" role="alert"><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
