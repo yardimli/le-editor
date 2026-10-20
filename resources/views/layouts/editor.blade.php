@@ -33,6 +33,7 @@
     <main class="page-shell">
         @if(session('status'))<div class="notice" role="status">{{ session('status') }}</div>@endif
         @if($errors->any())<div class="notice error" role="alert"><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
+        @include('components.browser-queue')
         @yield('content')
     </main>
     <footer class="page-shell py-8 muted text-xs">LE Editor · {{ __('editor.tagline') }}</footer>

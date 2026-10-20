@@ -15,6 +15,10 @@ Route::post('/locale', function (Request $request) {
 })->name('locale');
 
 Route::middleware('auth')->group(function () {
+    Route::get('/queue/state', [\App\Http\Controllers\QueueController::class, 'state']);
+    Route::post('/queue/step', [\App\Http\Controllers\QueueController::class, 'step']);
+    Route::post('/queue/cancel', [\App\Http\Controllers\QueueController::class, 'cancel']);
+    Route::post('/queue/resume', [\App\Http\Controllers\QueueController::class, 'resume']);
     Route::get('/dashboard', fn () => redirect()->route('books.index'))->name('dashboard');
     Route::get('/books', [BookController::class, 'index'])->name('books.index');
     Route::post('/books', [BookController::class, 'store'])->middleware('throttle:10,1')->name('books.store');

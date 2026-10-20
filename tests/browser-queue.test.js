@@ -1,0 +1,95 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { startBrowserQueue } from '../resources/js/browser-queue.js';
+
+const flush = () => new Promise(resolve => setImmediate(resolve));
+function surface() {
+    const handlers = {};
+    return {
+        open: false, hidden: false, textContent: '', value: 0,
+        classList: { toggle() {}, add() {}, remove() {} },
+        addEventListener(name, fn) { handlers[name] = fn; },
+        dispatchEvent() {},
+        emit(name, event = {}) { return handlers[name]?.(event); },
+        showModal() { this.open = true; }, close() { this.open = false; },
+        removeAttribute(name) { delete this[name]; },
+    };
+}
+function setup(initial) {
+    let state = initial, finishStep, timer;
+    const elements = new Map(), calls = [];
+    const window = surface(), document = surface();
+    const $ = id => {
+        if (!elements.has(id)) elements.set(id, surface());
+        return elements.get(id);
+    };
+    startBrowserQueue({
+        $, window, document, t: key => key, setInterval: fn => { timer = fn; },
+        request: async url => {
+            calls.push(url);
+            if (url === '/queue/step') return new Promise(resolve => { finishStep = resolve; });
+            if (url === '/queue/cancel') state = { ...state, paused: true, working: false };
+            if (url === '/queue/resume') state = { ...state, paused: false, working: false };
+            return state;
+        },
+    });
+    return { $, calls, window, document, tick: () => timer(),
+        finish: result => finishStep(result), setState: result => { state = result; } };
+}
+const active = { paused: false, working: false,
+    task: { kind: 'editing', title: 'Book', completed: 1, total: 3 } };
+
+test('shows progress, polls while waiting, and sends only one step at a time', async () => {
+    const ui = setup(active);
+    await flush();
+    assert.equal(ui.$('#queue-dialog').open, true);
+    assert.equal(ui.$('#queue-progress').value, 33);
+    await ui.tick();
+    assert.equal(ui.calls.filter(url => url === '/queue/step').length, 1);
+    ui.finish({ ...active, task: null });
+    await flush();
+    assert.equal(ui.$('#queue-dialog').open, false);
+});
+
+test('closing or hiding the page prevents further steps; returning resumes', async () => {
+    const ui = setup(active);
+    await flush();
+    ui.window.emit('pagehide');
+    ui.finish(active);
+    await flush();
+    const count = ui.calls.length;
+    await ui.tick();
+    assert.equal(ui.calls.length, count);
+    ui.window.emit('pageshow');
+    await flush();
+    assert.equal(ui.calls.filter(url => url === '/queue/step').length, 2);
+    ui.document.hidden = true;
+    ui.finish(active);
+    await flush();
+    await ui.tick();
+    assert.equal(ui.calls.filter(url => url === '/queue/step').length, 2);
+});
+
+test('cancel stays paused and ignores a late response until explicit resume', async () => {
+    const ui = setup(active);
+    await flush();
+    await ui.$('#queue-cancel').emit('click', { target: {} });
+    ui.finish(active);
+    await flush();
+    await ui.tick();
+    assert.equal(ui.$('#queue-dialog').open, false);
+    assert.equal(ui.calls.filter(url => url === '/queue/step').length, 1);
+    await ui.$('#queue-resume').emit('click', { target: {} });
+    await flush();
+    assert.equal(ui.$('#queue-dialog').open, true);
+    assert.equal(ui.calls.filter(url => url === '/queue/step').length, 2);
+});
+
+test('a refreshed paused page does not run jobs, and Escape cannot dismiss busy work', async () => {
+    const ui = setup({ ...active, paused: true });
+    await flush();
+    assert.equal(ui.calls.includes('/queue/step'), false);
+    let prevented = false;
+    ui.$('#queue-dialog').emit('cancel', { preventDefault() { prevented = true; } });
+    assert.equal(prevented, true);
+});

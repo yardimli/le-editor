@@ -35,6 +35,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'llm_lease',
         'openrouter_api_key',
     ];
 
@@ -45,6 +46,8 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'llm_paused' => 'boolean',
+        'llm_lease_until' => 'datetime',
         'openrouter_api_key' => 'encrypted',
     ];
 }

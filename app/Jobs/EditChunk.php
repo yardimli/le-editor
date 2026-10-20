@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\EditingRun;
 use App\Services\OpenRouter;
+use App\Services\BrowserQueue;
 use App\Services\TextEditor;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -18,16 +19,18 @@ class EditChunk implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
     public $tries = 3;
     public $timeout = 240;
-    public function __construct(public int $runId) {}
+    public function __construct(public int $runId, public ?string $token = null) {}
     public function middleware(): array { return [(new WithoutOverlapping('run-'.$this->runId))->releaseAfter(15)->expireAfter(270)]; }
 
     public function handle(OpenRouter $api, TextEditor $editor): void
     {
         $run = EditingRun::find($this->runId);
-        if (!$run || !$run->isActive()) { return; }
+        if (!($this->token ?? null) || !$run || !$run->isActive()) { return; }
         $chunk = $run->chunks()->where('status', 'pending')->first();
-        if (!$chunk) { $run->update(['status' => 'completed']); return; }
-        $run->update(['status' => 'running']);
+        if (!app(BrowserQueue::class)->commit($run->book->user_id, $this->token, function () use ($run, $chunk) {
+            $run->update(['status' => $chunk ? 'running' : 'completed']);
+            return (bool) $chunk;
+        })) { return; }
         try {
             $model = $api->model($run->model);
             $system = "You are a careful book editor. Edit only according to the author's instructions. "
@@ -53,7 +56,7 @@ class EditChunk implements ShouldQueue
             preg_match('/\s*$/u', $chunk->source, $trailing);
             $output = $leading[0].$output.$trailing[0];
             $segments = $editor->diff($chunk->source, $output);
-            DB::transaction(function () use ($chunk, $output, $segments, $result) {
+            app(BrowserQueue::class)->commit($run->book->user_id, $this->token, function () use ($chunk, $output, $segments, $result) {
                 $locked = EditingRun::lockForUpdate()->find($this->runId);
                 if (!$locked || !$locked->isActive()) { return; }
                 $chunk->update(['output' => $output, 'segments' => $segments, 'status' => 'completed']);
@@ -62,20 +65,14 @@ class EditChunk implements ShouldQueue
                 $locked->cost += $result['cost'];
                 $locked->status = $locked->completed_chunks === $locked->total_chunks ? 'completed' : 'running';
                 $locked->save();
-                if ($locked->isActive()) { self::dispatch($locked->id)->afterCommit(); }
             });
         } catch (\Throwable $e) {
             $known = ['api_key_required', 'api_key_invalid', 'insufficient_credits', 'rate_limited', 'provider_error',
                 'empty_output', 'incomplete_output', 'chunk_too_large', 'suspicious_output', 'model_unavailable', 'catalog_unavailable'];
-            EditingRun::whereKey($this->runId)->whereIn('status', ['queued', 'running'])->update([
+            app(BrowserQueue::class)->commit($run->book->user_id, $this->token, fn () => EditingRun::whereKey($this->runId)->whereIn('status', ['queued', 'running'])->update([
                 'status' => 'failed', 'error' => in_array($e->getMessage(), $known) ? $e->getMessage() : 'provider_error',
-            ]);
+            ]));
         }
     }
 
-    public function failed(?\Throwable $exception): void
-    {
-        EditingRun::whereKey($this->runId)->whereIn('status', ['queued', 'running'])
-            ->update(['status' => 'failed', 'error' => 'job_failed']);
-    }
 }

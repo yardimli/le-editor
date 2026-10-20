@@ -9,6 +9,7 @@ use App\Models\Book;
 use App\Models\Feedback;
 use App\Models\User;
 use App\Services\Docx;
+use App\Services\BrowserQueue;
 use App\Services\OpenRouter;
 use App\Services\TextEditor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -41,6 +42,117 @@ class EditorTest extends TestCase
             ['id' => 'test/free:free', 'name' => 'Free', 'pricing' => ['completion' => '0']],
             ['id' => 'test/expensive', 'name' => 'Expensive', 'pricing' => ['completion' => '0.0002']],
         ]])]);
+    }
+
+    public function test_browser_requests_process_one_chunk_at_a_time_and_resume_after_return(): void
+    {
+        $this->catalog(); app(OpenRouter::class)->models();
+        $book = $this->book(); $run = $this->runWithChanges($book);
+        $run->update(['status' => 'queued', 'completed_chunks' => 0, 'total_chunks' => 2]);
+        $run->chunks()->update(['status' => 'pending', 'segments' => null]);
+        $run->chunks()->create(['position' => 1, 'source' => $book->text]);
+        Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop',
+            'message' => ['content' => "A smooth sentence.\n\nAnother paragraph."]]]])]);
+        $this->actingAs($book->user)->postJson('/queue/step')->assertOk();
+        $this->assertSame(1, $run->fresh()->completed_chunks);
+        // Reading state, refreshing and returning never perform a completion themselves.
+        $this->getJson('/queue/state')->assertJsonPath('task.completed', 1);
+        $this->get("/books/{$book->id}")->assertOk();
+        $this->assertSame(1, $run->fresh()->completed_chunks);
+        $this->postJson('/queue/step')->assertOk()->assertJsonPath('task', null);
+        $this->assertSame(2, $run->fresh()->completed_chunks);
+        $this->assertDatabaseCount('jobs', 0);
+    }
+
+    public function test_cancel_persists_across_page_loads_until_explicit_resume(): void
+    {
+        Http::preventStrayRequests();
+        $book = $this->book(); $run = $this->runWithChanges($book);
+        $run->update(['status' => 'running']);
+        $this->actingAs($book->user)->postJson('/queue/cancel')->assertJsonPath('paused', true);
+        $this->get('/books')->assertOk();
+        $this->getJson('/queue/state')->assertJsonPath('paused', true);
+        $this->postJson('/queue/step')->assertJsonPath('paused', true);
+        $this->assertSame('cancelled', $run->fresh()->status);
+        Http::assertNothingSent();
+        $this->postJson('/queue/resume')->assertJsonPath('paused', false);
+        $this->assertSame('queued', $run->fresh()->status);
+    }
+
+    public function test_queue_is_authenticated_and_scoped_to_current_account(): void
+    {
+        Http::preventStrayRequests();
+        $book = $this->book(); $book->update(['metadata_status' => 'pending']);
+        $this->postJson('/queue/step')->assertUnauthorized();
+        $this->actingAs(User::factory()->create())->getJson('/queue/state')->assertJsonPath('task', null);
+        $this->postJson('/queue/step')->assertJsonPath('task', null);
+        $this->postJson('/queue/cancel')->assertOk();
+        $this->assertFalse($book->user->fresh()->llm_paused);
+        $this->assertSame('pending', $book->fresh()->metadata_status);
+        Http::assertNothingSent();
+    }
+
+    public function test_competing_tabs_wait_and_expired_leases_cannot_commit(): void
+    {
+        Http::preventStrayRequests();
+        $book = $this->book(); $book->update(['metadata_status' => 'pending']);
+        $queue = app(BrowserQueue::class);
+        $old = $queue->claim($book->user_id);
+        $this->assertNotNull($old);
+        $this->assertNull($queue->claim($book->user_id));
+        $this->actingAs($book->user)->postJson('/queue/step')->assertJsonPath('working', true);
+        Http::assertNothingSent();
+        $this->travel(301)->seconds();
+        $new = $queue->claim($book->user_id);
+        $this->assertNotSame($old, $new);
+        $this->assertNull($queue->commit($book->user_id, $old, fn () => $book->update(['title' => 'Stale'])));
+        $queue->release($book->user_id, $old);
+        $this->assertSame($new, $book->user->fresh()->llm_lease);
+        $this->assertSame('Eser', $book->fresh()->title);
+        $this->travelBack();
+    }
+
+    public function test_cancel_then_resume_rejects_old_metadata_and_learning_responses(): void
+    {
+        $this->catalog();
+        $book = $this->book(); $queue = app(BrowserQueue::class);
+        foreach (['metadata', 'learning'] as $kind) {
+            $book->update(['metadata_status' => $kind === 'metadata' ? 'pending' : 'complete']);
+            if ($kind === 'learning') {
+                Feedback::create(['book_id' => $book->id, 'before' => 'old', 'after' => 'new', 'decision' => 'accepted']);
+            }
+            Http::fake(['*/chat/completions' => function () use ($queue, $book, $kind) {
+                $queue->pause($book->user_id);
+                $queue->resume($book->user_id);
+                return Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' =>
+                    $kind === 'metadata' ? '{"title":"Late title","language":"en"}' : 'Late prompt']]]]);
+            }]);
+            $queue->step($book->user_id);
+            $this->assertSame('Eser', $book->fresh()->title);
+            $this->assertSame('Polish lightly.', $book->fresh()->prompt);
+        }
+        $this->assertDatabaseHas('feedback', ['book_id' => $book->id, 'status' => 'pending']);
+    }
+
+    public function test_legacy_worker_jobs_without_a_browser_lease_do_nothing(): void
+    {
+        Http::preventStrayRequests();
+        $book = $this->book(); $book->update(['metadata_status' => 'pending']);
+        (new InferBookMetadata($book->id))->handle(app(OpenRouter::class), app(TextEditor::class));
+        (new LearnPrompt($book->id))->handle(app(OpenRouter::class));
+        Http::assertNothingSent();
+        $this->assertSame('pending', $book->fresh()->metadata_status);
+    }
+
+    public function test_environment_locale_default_and_user_switch_are_respected(): void
+    {
+        config(['app.locale' => 'en']);
+        $this->get('/register')->assertSee('lang="en"', false);
+        $this->post('/register', ['name' => 'Reader', 'email' => 'reader@example.com',
+            'password' => 'password123', 'password_confirmation' => 'password123'])->assertRedirect();
+        $this->assertSame('en', User::where('email', 'reader@example.com')->first()->locale);
+        $this->post('/locale', ['locale' => 'tr'])->assertRedirect();
+        $this->get('/books')->assertSee('lang="tr"', false);
     }
 
     private function runWithChanges(Book $book)
@@ -83,7 +195,7 @@ class EditorTest extends TestCase
             $run->update(['status' => 'cancelled']);
             return Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => 'A smoother sentence. Another paragraph.']]]]);
         }]);
-        (new EditChunk($run->id))->handle(app(OpenRouter::class), app(TextEditor::class));
+        (new EditChunk($run->id, app(BrowserQueue::class)->claim($book->user_id)))->handle(app(OpenRouter::class), app(TextEditor::class));
         $this->assertSame('cancelled', $run->fresh()->status);
         $this->assertNull($run->chunks()->first()->segments);
         Queue::assertNotPushed(EditChunk::class);
@@ -97,7 +209,7 @@ class EditorTest extends TestCase
             $book->update(['metadata_status' => 'complete', 'title' => 'My title']);
             return Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => '{"title":"AI title","language":"tr"}']]]]);
         }]);
-        (new InferBookMetadata($book->id))->handle(app(OpenRouter::class), app(TextEditor::class));
+        (new InferBookMetadata($book->id, app(BrowserQueue::class)->claim($book->user_id)))->handle(app(OpenRouter::class), app(TextEditor::class));
         $this->assertSame('My title', $book->fresh()->title);
     }
 
@@ -156,13 +268,15 @@ class EditorTest extends TestCase
     {
         Queue::fake(); $this->catalog();
         $book = $this->book(); $old = $this->runWithChanges($book);
+        app(BrowserQueue::class)->pause($book->user_id);
         $this->actingAs($book->user)->postJson("/books/{$book->id}/run", ['model' => 'test/paid', 'chunk_size' => 100, 'version' => 1])->assertOk();
         $book->refresh();
+        $this->assertFalse($book->user->fresh()->llm_paused);
         $this->assertSame("New sentence.\n\nAnother paragraph.", $book->text);
         $this->assertSame(100, $book->activeRun->chunk_size);
         $this->assertNotSame($old->id, $book->active_run_id);
         $this->assertDatabaseHas('editing_runs', ['id' => $old->id]);
-        Queue::assertPushed(EditChunk::class);
+        Queue::assertNotPushed(EditChunk::class);
     }
 
     public function test_manual_save_tracks_revision_archives_suggestions_and_rejects_stale_writes(): void
@@ -182,7 +296,7 @@ class EditorTest extends TestCase
         $book = $this->book(); $run = $this->runWithChanges($book); $chunk = $run->chunks()->first();
         $this->actingAs($book->user)->patchJson("/books/{$book->id}/chunks/{$chunk->id}", ['index' => 2, 'status' => 'accepted', 'version' => 1])->assertOk();
         $this->assertDatabaseHas('feedback', ['book_id' => $book->id, 'decision' => 'accepted']);
-        Queue::assertPushed(LearnPrompt::class);
+        Queue::assertNotPushed(LearnPrompt::class);
         $this->patchJson("/books/{$book->id}/chunks/{$chunk->id}", ['index' => 2, 'status' => 'rejected', 'version' => 1])->assertConflict();
         $other = $this->runWithChanges($this->book())->chunks()->first();
         $this->patchJson("/books/{$book->id}/chunks/{$other->id}", ['index' => 2, 'status' => 'accepted', 'version' => 2])->assertNotFound();
@@ -193,7 +307,7 @@ class EditorTest extends TestCase
         Http::preventStrayRequests();
         $book = $this->book(); $run = $this->runWithChanges($book); $run->update(['status' => 'running']);
         $this->actingAs($book->user)->postJson("/books/{$book->id}/cancel")->assertOk();
-        (new EditChunk($run->id))->handle(app(OpenRouter::class), app(TextEditor::class));
+        (new EditChunk($run->id, app(BrowserQueue::class)->claim($book->user_id)))->handle(app(OpenRouter::class), app(TextEditor::class));
         $this->assertSame('cancelled', $run->fresh()->status);
         $this->assertSame("New sentence.\n\nAnother paragraph.", app(TextEditor::class)->rendered($book->fresh()));
         Http::assertNothingSent();
@@ -229,10 +343,10 @@ class EditorTest extends TestCase
         $file = new UploadedFile($path, 'book.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', null, true);
         $user = User::factory()->create();
         $this->actingAs($user)->post('/books', ['file' => $file])->assertRedirect();
-        Queue::assertPushed(InferBookMetadata::class);
+        Queue::assertNotPushed(InferBookMetadata::class);
         $book = Book::firstOrFail();
         Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => '{"title":"Yeni Başlık","language":"tr"}']]]])]);
-        (new InferBookMetadata($book->id))->handle(app(OpenRouter::class), app(TextEditor::class));
+        (new InferBookMetadata($book->id, app(BrowserQueue::class)->claim($book->user_id)))->handle(app(OpenRouter::class), app(TextEditor::class));
         $this->assertSame('Yeni Başlık', $book->fresh()->title);
         Http::assertSent(fn ($request) => str_ends_with($request->url(), '/chat/completions')
             && app(TextEditor::class)->words($request['messages'][1]['content']) === 2000);
@@ -246,7 +360,7 @@ class EditorTest extends TestCase
         $run->update(['status' => 'queued', 'completed_chunks' => 0]);
         $run->chunks()->update(['status' => 'pending', 'segments' => null]);
         Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => "A smooth sentence.\n\nAnother paragraph."]]], 'usage' => ['total_tokens' => 42, 'cost' => 0.001]])]);
-        (new EditChunk($run->id))->handle(app(OpenRouter::class), app(TextEditor::class));
+        (new EditChunk($run->id, app(BrowserQueue::class)->claim($book->user_id)))->handle(app(OpenRouter::class), app(TextEditor::class));
         $this->assertSame('completed', $run->fresh()->status);
         $this->assertSame(42, $run->fresh()->tokens);
         $this->assertNotEmpty($run->chunks()->first()->segments);
@@ -259,7 +373,7 @@ class EditorTest extends TestCase
         $run->update(['status' => 'queued', 'completed_chunks' => 0]);
         $run->chunks()->update(['status' => 'pending', 'segments' => null]);
         Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'length', 'message' => ['content' => 'partial']]]])]);
-        (new EditChunk($run->id))->handle(app(OpenRouter::class), app(TextEditor::class));
+        (new EditChunk($run->id, app(BrowserQueue::class)->claim($book->user_id)))->handle(app(OpenRouter::class), app(TextEditor::class));
         $this->assertSame('incomplete_output', $run->fresh()->error);
         $this->assertNull($run->chunks()->first()->segments);
     }
@@ -270,7 +384,7 @@ class EditorTest extends TestCase
         $book = $this->book();
         Feedback::create(['book_id' => $book->id, 'before' => 'old', 'after' => 'new', 'decision' => 'rejected']);
         Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => 'Preserve this phrasing.']]]])]);
-        (new LearnPrompt($book->id))->handle(app(OpenRouter::class));
+        (new LearnPrompt($book->id, app(BrowserQueue::class)->claim($book->user_id)))->handle(app(OpenRouter::class));
         $this->assertSame('Preserve this phrasing.', $book->fresh()->prompt);
         $this->assertDatabaseHas('prompt_revisions', ['book_id' => $book->id, 'prompt' => 'Polish lightly.']);
         $this->assertDatabaseHas('feedback', ['book_id' => $book->id, 'status' => 'complete']);

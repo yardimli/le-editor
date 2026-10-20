@@ -9,7 +9,7 @@ class Locale
 {
     public function handle(Request $request, Closure $next)
     {
-        app()->setLocale($request->user()?->locale ?? session('locale', 'tr'));
+        app()->setLocale($request->user()?->locale ?? session('locale', config('app.locale', 'tr')));
         return $next($request);
     }
 }

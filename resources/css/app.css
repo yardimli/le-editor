@@ -69,3 +69,7 @@
     .text-gray-900, .text-gray-800, .text-gray-700 { color: var(--ink); }
     .text-gray-600, .text-gray-500 { color: var(--muted); }
 }
+
+.queue-spinner { display: inline-block; width: 1.5rem; height: 1.5rem; border: 3px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: queue-spin 1s linear infinite; }
+@keyframes queue-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .queue-spinner { animation-duration: 3s; } }

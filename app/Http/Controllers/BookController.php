@@ -2,9 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\EditChunk;
-use App\Jobs\InferBookMetadata;
-use App\Jobs\LearnPrompt;
+use App\Services\BrowserQueue;
 use App\Models\Book;
 use App\Models\Chunk;
 use App\Models\Feedback;
@@ -45,7 +43,7 @@ class BookController extends Controller
             'original_path' => $path, 'original_text' => $import['text'], 'text' => $import['text'], 'model' => $model,
         ]);
         $book->versions()->create(['text' => $book->text, 'reason' => 'import']);
-        InferBookMetadata::dispatch($book->id);
+        app(BrowserQueue::class)->resume(auth()->id());
         return redirect()->route('books.show', $book)->with('status', __('editor.import_notice'));
     }
 
@@ -142,18 +140,15 @@ class BookController extends Controller
             }
             $locked->update(['text' => $text, 'active_run_id' => $run->id, 'model' => $data['model'],
                 'chunk_size' => $data['chunk_size'], 'version' => $locked->version + 1]);
-            EditChunk::dispatch($run->id)->afterCommit();
         });
+        app(BrowserQueue::class)->resume(auth()->id());
         return response()->json(['ok' => true]);
     }
 
     public function cancel(Book $book)
     {
         $this->owner($book);
-        DB::transaction(function () use ($book) {
-            $run = $book->activeRun()->lockForUpdate()->first();
-            if ($run?->isActive()) { $run->update(['status' => 'cancelled']); }
-        });
+        app(BrowserQueue::class)->pause(auth()->id());
         return response()->json(['ok' => true]);
     }
 
@@ -165,8 +160,8 @@ class BookController extends Controller
             $run = $locked->activeRun()->lockForUpdate()->first();
             abort_unless($run && in_array($run->status, ['failed', 'cancelled']), 409);
             $run->update(['status' => 'queued', 'error' => null]);
-            EditChunk::dispatch($run->id)->afterCommit();
         });
+        app(BrowserQueue::class)->resume(auth()->id());
         return response()->json(['ok' => true]);
     }
 
@@ -174,7 +169,8 @@ class BookController extends Controller
     {
         $this->owner($book);
         $data = $request->validate(['index' => 'required|integer|min:0', 'status' => 'required|in:accepted,rejected,pending', 'version' => 'required|integer']);
-        return DB::transaction(function () use ($book, $chunk, $data) {
+        $learning = false;
+        $response = DB::transaction(function () use ($book, $chunk, $data, &$learning) {
             $locked = Book::lockForUpdate()->findOrFail($book->id);
             $this->idle($locked);
             abort_unless($locked->version === $data['version'], 409, __('editor.save_conflict'));
@@ -190,11 +186,13 @@ class BookController extends Controller
                 if ($locked->learn && $data['status'] !== 'pending') {
                     Feedback::create(['book_id' => $book->id, 'before' => $segment['before'],
                         'after' => $segment['after'], 'decision' => $data['status']]);
-                    LearnPrompt::dispatch($book->id)->afterCommit();
+                    $learning = true;
                 }
             }
             return response()->json(['version' => $locked->version]);
         });
+        if ($learning) { app(BrowserQueue::class)->resume(auth()->id()); }
+        return $response;
     }
 
     public function restore(Request $request, Book $book)
@@ -221,7 +219,7 @@ class BookController extends Controller
     {
         $this->owner($book);
         Feedback::where('book_id', $book->id)->where('status', 'failed')->update(['status' => 'pending']);
-        LearnPrompt::dispatch($book->id);
+        app(BrowserQueue::class)->resume(auth()->id());
         return response()->json(['ok' => true]);
     }
 

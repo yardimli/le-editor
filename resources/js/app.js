@@ -1,3 +1,4 @@
+import { startBrowserQueue } from './browser-queue';
 import './bootstrap';
 import Alpine from 'alpinejs';
 window.Alpine = Alpine;
@@ -71,11 +72,12 @@ async function loadModels() {
 }
 loadModels();
 
+if (window.leQueue) startBrowserQueue({ $, request, t, window, document, setInterval });
+
 if (window.leBook) {
     const book = window.leBook;
     const base = `/books/${book.id}`;
     const input = $('#manuscript-input');
-    const progressDialog = $('#editing-dialog');
     const exportDialog = $('#export-dialog');
     const settings = $('#book-settings');
     let state = null, dirty = false, settingsDirty = false, busy = false, active = false;
@@ -148,14 +150,6 @@ if (window.leBook) {
             if (next.version < book.version) return;
             state = next;
             active = ['queued','running'].includes(next.run?.status);
-            if (active && !progressDialog.open) progressDialog.showModal();
-            if (!active && progressDialog.open) progressDialog.close();
-            if (active) {
-                const percent = Math.round(next.run.completed_chunks / Math.max(1,next.run.total_chunks) * 100);
-                $('#edit-progress').value = percent;
-                $('#progress-label').textContent = `${next.run.completed_chunks} / ${next.run.total_chunks} · ${percent}%`;
-            }
-            $('#progress-error').textContent = '';
             if (!dirty && !saving) {
                 book.version = next.version;
                 input.value = next.text; acknowledgedText = next.text;
@@ -178,8 +172,7 @@ if (window.leBook) {
             $('#retry-run').classList.toggle('hidden', !['cancelled','failed'].includes(next.run?.status));
             updateEstimate();
         } catch (error) {
-            if (active) $('#progress-error').textContent = error.message;
-            else message(error.message, true);
+            message(error.message, true);
         } finally { polling = false; }
     }
     async function saveText() {
@@ -229,13 +222,6 @@ if (window.leBook) {
         } catch (error) { message(error.message, true); }
         finally { busy = false; $('#run-button').disabled = false; }
     });
-    progressDialog.addEventListener('cancel', event => event.preventDefault());
-    $('#cancel-run').addEventListener('click', async event => {
-        event.target.disabled = true;
-        try { await request(`${base}/cancel`, 'POST', {}); await refresh(); }
-        catch (error) { $('#progress-error').textContent = error.message; }
-        finally { event.target.disabled = false; }
-    });
     $('#retry-run').addEventListener('click', async () => {
         try { await request(`${base}/retry`, 'POST', {}); await refresh(); }
         catch (error) { message(error.message, true); }
@@ -272,8 +258,9 @@ if (window.leBook) {
     $('#close-export').addEventListener('click', () => exportDialog.close());
     $('#export-form').addEventListener('submit', () => exportDialog.close());
     window.addEventListener('beforeunload', event => {
-        if (dirty || settingsDirty || active) { event.preventDefault(); event.returnValue = t('unsaved'); }
+        if (dirty || settingsDirty) { event.preventDefault(); event.returnValue = t('unsaved'); }
     });
+    window.addEventListener('queue-updated', () => { if (!busy) refresh(); });
     refresh();
     setInterval(() => { if (!document.hidden && !busy) refresh(); }, 3000);
 }
