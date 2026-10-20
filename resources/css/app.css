@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root { --paper: #f4efe5; --sheet: #fbf8f0; --ink: #302f29; --muted: #79776c; --line: #dcd6c8; --accent: #365b4d; --soft: #e5e8dc; }
+    .dark { --paper: #1c2321; --sheet: #242d29; --ink: #e9e5d9; --muted: #a8b4ab; --line: #3f4c44; --accent: #a5cbb6; --soft: #35453a; color-scheme: dark; }
+    body { background: var(--paper); color: var(--ink); @apply font-sans antialiased; }
+    h1, h2 { font-family: Georgia, 'Times New Roman', serif; }
+    h1 { @apply text-3xl md:text-4xl; } h2 { @apply text-2xl; }
+    label { @apply block text-sm font-medium mb-2; }
+    input:not([type=checkbox]):not([type=hidden]):not([type=file]), select, textarea { background: var(--sheet); border: 1px solid var(--line); color: var(--ink); @apply rounded-lg w-full text-sm focus:ring-1; --tw-ring-color: var(--accent); }
+    input[type=checkbox] { color: var(--accent); border-color: var(--line); @apply rounded focus:ring-1; }
+    button, a, input, select, textarea, summary { @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4; outline-color: var(--accent); }
+    button:disabled { @apply opacity-50 cursor-wait; }
+    del { background: #f2d9d3; color: #843a30; text-decoration-thickness: 1px; }
+    ins { background: #dce9c9; color: #34502f; text-decoration: none; }
+    .dark del { background: #573a36; color: #f2b8aa; } .dark ins { background: #3a513b; color: #c7e8b6; }
+}
+@layer components {
+    .site-header { border-bottom: 1px solid var(--line); @apply px-5 md:px-10 py-5 flex flex-wrap gap-5 items-center justify-between; }
+    .site-header nav { @apply text-xs font-medium; }
+    .brand { @apply flex items-center gap-3 text-xs tracking-widest font-semibold; }
+    .brand small { @apply block mt-1 text-[10px] font-normal tracking-normal; color: var(--muted); }
+    .brand-mark { background: var(--accent); color: var(--paper); @apply rounded-full h-11 w-11 flex items-center justify-center font-serif text-2xl tracking-tight; }
+    .page-shell { @apply max-w-[1540px] mx-auto px-5 md:px-10; }
+    .page-heading { @apply flex justify-between items-center gap-5 py-10; }
+    .eyebrow { color: var(--muted); @apply uppercase tracking-[0.16em] text-[10px] font-semibold; }
+    .muted, .hint { color: var(--muted); } .hint { @apply text-xs leading-relaxed mt-2; }
+    .text-accent { color: var(--accent); }
+    .nav-active { color: var(--accent); @apply underline underline-offset-8; }
+    .panel { background: var(--sheet); border: 1px solid var(--line); @apply rounded-xl p-6; }
+    .button { background: var(--accent); color: var(--paper); @apply rounded-lg px-5 py-3 text-sm font-semibold hover:opacity-90 transition; }
+    .button-secondary { border: 1px solid var(--line); background: var(--sheet); @apply rounded-lg px-4 py-2.5 text-sm font-medium hover:opacity-75 transition; }
+    .quiet-button { @apply text-xs py-1 hover:opacity-70; }
+    .notice { background: var(--soft); border: 1px solid var(--line); @apply rounded-lg px-4 py-3 my-4 text-sm leading-relaxed; }
+    .notice.error { border-color: #ae7061; }
+    .count-badge, .pill { background: var(--soft); @apply rounded-full px-3 py-1 text-xs; }
+    .count-badge { @apply text-2xl font-serif px-5 py-3; }
+    .check-label { @apply flex gap-3 text-sm font-normal leading-relaxed; }
+    .check-label input { @apply shrink-0 mt-1; }
+    .book-card { background: var(--sheet); border: 1px solid var(--line); @apply rounded-xl overflow-hidden transition hover:-translate-y-1; }
+    .book-cover { background: var(--soft); @apply relative p-7 h-64 flex flex-col justify-between border-l-[7px]; border-color: var(--accent); }
+    .book-cover span, .book-cover small { color: var(--accent); @apply text-[10px] tracking-[0.2em]; }
+    .book-cover h2 { @apply text-2xl leading-snug line-clamp-4; }
+    .upload-area { border: 1px dashed var(--line); @apply p-5 rounded-lg flex flex-col items-center text-center gap-5 text-xs; }
+    .editor-grid { @apply grid gap-7 items-start md:grid-cols-[270px_minmax(0,1fr)] lg:grid-cols-[310px_minmax(0,1fr)] xl:grid-cols-[340px_minmax(0,1fr)]; }
+    .manuscript-toolbar { border-bottom: 1px solid var(--line); @apply flex justify-between gap-3 items-center pb-3; }
+    .tab-button { @apply px-3 py-2 text-xs rounded-lg; color: var(--muted); }
+    .tab-button.active { background: var(--soft); color: var(--ink); }
+    .manuscript-sheet { background: var(--sheet); border: 1px solid var(--line); @apply rounded-xl relative min-h-[650px] px-6 py-16 md:px-12 xl:px-16 shadow-sm; }
+    .manuscript-text { font-family: Georgia, 'Times New Roman', serif; @apply text-lg leading-[2.1] break-words; }
+    #manuscript-input { border: 0; background: transparent; @apply w-full min-h-[650px] resize-y focus:ring-0 p-0 text-lg; }
+    .save-indicator { background: var(--soft); @apply sticky top-4 w-fit z-10 text-xs rounded-full px-4 py-2 mb-6 -mt-10 shadow-sm; }
+    .preset-list { @apply max-h-72 overflow-y-auto; }
+    .change { @apply rounded px-0.5; } .change[data-status=rejected] ins { @apply opacity-40; } .change[data-status=accepted] del { @apply opacity-40; }
+    .change-tools { font-family: ui-sans-serif, system-ui; @apply inline-flex gap-1 align-middle mx-1 text-[10px] leading-normal whitespace-nowrap; }
+    .change-tools button { border: 1px solid var(--line); @apply rounded px-1.5 py-1; }
+    .change.focused { outline: 2px solid var(--accent); outline-offset: 4px; }
+    .chunk-label { @apply block text-[10px] tracking-widest uppercase mb-4 mt-6 font-sans; color: var(--muted); }
+    .editor-dialog { background: var(--sheet); color: var(--ink); border: 1px solid var(--line); @apply rounded-2xl p-8 max-w-lg w-[calc(100%-2rem)] shadow-2xl; }
+    .editor-dialog::backdrop { background: rgb(20 30 24 / 65%); backdrop-filter: blur(4px); }
+    progress { accent-color: var(--accent); @apply h-2 rounded-full overflow-hidden; }
+    progress::-webkit-progress-bar { background: var(--line); } progress::-webkit-progress-value { background: var(--accent); }
+    .history-item { border-bottom: 1px solid var(--line); @apply py-4 text-sm; }
+    .hero-page { background: var(--sheet); border: 1px solid var(--line); @apply rounded-sm p-10 shadow-xl rotate-2; }
+    /* Breeze forms inherit the same paper palette. */
+    .bg-white, .bg-gray-100 { background-color: var(--sheet); }
+    .text-gray-900, .text-gray-800, .text-gray-700 { color: var(--ink); }
+    .text-gray-600, .text-gray-500 { color: var(--muted); }
+}
