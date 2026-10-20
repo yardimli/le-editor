@@ -37,7 +37,27 @@
     @auth
     <div class="status-band">
         <div class="page-shell status-band-inner">
-            <a href="{{ route('books.index') }}" class="text-xs font-semibold shrink-0">LE EDITOR</a>
+            @hasSection('status-controls')
+                @yield('status-controls')
+            @else
+                <a href="{{ route('books.index') }}" class="text-xs font-semibold shrink-0">LE EDITOR</a>
+            @endif
+
+        </div>
+    </div>
+    @endauth
+    <main class="page-shell">
+        @if(session('status'))<div class="notice" role="status">{{ session('status') }}</div>@endif
+        @if($errors->any())<div class="notice error" role="alert"><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
+        @unless(request()->routeIs('books.index'))
+            @include('components.browser-queue')
+        @endunless
+        @yield('content')
+    </main>
+    <footer class="page-shell py-8 muted text-xs">LE Editor · {{ __('editor.tagline') }}</footer>
+    @auth
+    <footer class="work-footer"><div class="page-shell work-footer-inner">
+        @yield('work-controls')
             <div class="header-notification">
                 <span id="header-ai-spinner" class="queue-spinner hidden" aria-hidden="true"></span>
                 <span id="header-ai-status" role="status" aria-live="polite"></span>
@@ -47,16 +67,9 @@
                 </span>
                 <button type="button" id="header-ai-cancel" class="quiet-button underline hidden">{{ __('editor.setup_cancel') }}</button>
             </div>
-        </div>
-    </div>
+    </div></footer>
     @endauth
-    <main class="page-shell">
-        @if(session('status'))<div class="notice" role="status">{{ session('status') }}</div>@endif
-        @if($errors->any())<div class="notice error" role="alert"><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
-        @include('components.browser-queue')
-        @yield('content')
-    </main>
-    <footer class="page-shell py-8 muted text-xs">LE Editor · {{ __('editor.tagline') }}</footer>
+    @auth<script>window.leStrings = @js(__('editor'));</script>@endauth
     @stack('scripts')
 </body>
 </html>

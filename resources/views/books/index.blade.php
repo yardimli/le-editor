@@ -4,10 +4,14 @@
 <div class="grid lg:grid-cols-[1fr_340px] gap-8 items-start">
     <section class="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
         @forelse($books as $book)
-            <a href="{{ route('books.show', $book) }}" class="book-card group">
+            <article class="book-card group"><a href="{{ route('books.show', $book) }}" class="block">
                 <div class="book-cover"><span>{{ strtoupper($book->language) }}</span><h2>{{ $book->title }}</h2><small>LE / {{ str_pad($book->id, 3, '0', STR_PAD_LEFT) }}</small></div>
                 <div class="p-5"><h3 class="font-semibold truncate">{{ $book->title }}</h3><p class="muted text-xs mt-2">{{ number_format(app(\App\Services\TextEditor::class)->words($book->text)) }} {{ __('editor.words') }} · {{ $book->updated_at->format('d.m.Y') }}</p><span class="text-accent text-sm inline-block mt-5">{{ __('editor.open') }} ↗</span></div>
-            </a>
+            </a><div class="px-5 pb-5 flex flex-wrap gap-3 text-xs">
+                <a href="{{ route('books.activity', $book) }}" class="text-accent">{{ __('editor.history') }}</a>
+                <a href="{{ route('books.export', $book) }}" class="text-accent">{{ __('editor.export') }}</a>
+                <form method="POST" action="{{ route('books.destroy', $book) }}" data-confirm="{{ __('editor.delete_confirm') }}">@csrf @method('DELETE')<button type="submit" class="text-accent">{{ __('editor.delete') }}</button></form>
+            </div></article>
         @empty
             <div class="panel sm:col-span-2 py-20 text-center"><span class="text-5xl text-accent">¶</span><h2 class="mt-6">{{ __('editor.empty_library') }}</h2><p class="muted mt-3">{{ __('editor.empty_hint') }}</p></div>
         @endforelse

@@ -105,6 +105,9 @@ class ChunkReview
             }
             if ($unit['end'] <= $start || $unit['start'] >= $end) { continue; }
             if ($s['type'] === 'equal') {
+                $from = max(0, $start - $unit['start']);
+                $length = min($unit['end'], $end) - max($unit['start'], $start);
+                foreach (['italics', 'before_italics'] as $key) if (isset($s[$key])) $s[$key] = app(Italics::class)->slice($s[$key], $from, $length);
                 $s['before'] = $s['after'] = mb_substr($s['before'], max(0, $start - $unit['start']),
                     min($unit['end'], $end) - max($unit['start'], $start));
             }

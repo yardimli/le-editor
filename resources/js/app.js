@@ -73,6 +73,5 @@ async function loadModels() {
 }
 loadModels();
 
-if (window.leQueue) startBrowserQueue({ $, request, t, window, document, setInterval });
-
-if (window.leBook) startBookEditor({ $, $$, request, t, confirmAction, getModels: () => models });
+const bookEditor = window.leBook ? startBookEditor({ $, $$, request, t, confirmAction, getModels: () => models }) : null;
+if (window.leQueue) startBrowserQueue({ $, request, t, window, document, setInterval, pollState: bookEditor?.poll });

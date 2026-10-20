@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class Book extends Model
 {
     protected $guarded = ['id'];
-    protected $casts = ['learn' => 'boolean', 'learning_requested' => 'boolean', 'learning_hint_dismissed' => 'boolean'];
+    protected $casts = ['original_formatting' => 'array', 'italics' => 'array', 'italicize' => 'boolean', 'learn' => 'boolean', 'learning_requested' => 'boolean', 'learning_hint_dismissed' => 'boolean'];
     protected $hidden = ['original_text', 'original_path'];
 
     public function user() { return $this->belongsTo(User::class); }

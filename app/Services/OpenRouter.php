@@ -22,7 +22,7 @@ class OpenRouter
     {
         $cacheKey = 'openrouter.models.'.hash('sha256', implode('|', [
             config('editor.min_output_price'), config('editor.max_output_price'),
-            config('editor.api_key'),
+            config('editor.api_key'), implode(',', config('editor.providers')), 'provider-catalog-v1',
         ]));
         return Cache::remember($cacheKey, 3600, function () {
             if (!config('editor.api_key')) {
@@ -36,18 +36,25 @@ class OpenRouter
             return collect($response->json('data', []))->filter(function ($model) {
                 $price = $model['pricing']['completion'] ?? null;
                 $outputs = $model['architecture']['output_modalities'] ?? ['text'];
-                return is_numeric($price) && (float) $price > 0
+                $provider = strtolower(explode('/', $model['id'] ?? '')[0]);
+                return in_array($provider, config('editor.providers'), true)
+                    && !str_contains(strtolower(($model['name'] ?? '').' '.($model['id'] ?? '')), 'batch')
+                    && is_numeric($price) && (float) $price > 0
                     && !str_ends_with($model['id'], ':free')
                     && in_array('text', $outputs)
                     && (float) $price * 1000000 >= config('editor.min_output_price')
                     && (float) $price * 1000000 <= config('editor.max_output_price');
             })->map(fn ($model) => [
                 'id' => $model['id'], 'name' => $model['name'],
+                'provider' => strtolower(explode('/', $model['id'])[0]),
                 'output_price' => (float) $model['pricing']['completion'] * 1000000,
                 'input_price' => (float) ($model['pricing']['prompt'] ?? 0) * 1000000,
                 'context_length' => $model['context_length'] ?? 0,
                 'max_output' => $model['top_provider']['max_completion_tokens'] ?? null,
-            ])->sortBy('name')->values()->all();
+            ])->sortBy([
+                fn ($a, $b) => array_search($a['provider'], config('editor.providers'), true) <=> array_search($b['provider'], config('editor.providers'), true),
+                ['output_price', 'asc'], ['name', 'asc'], ['id', 'asc'],
+            ])->values()->all();
         });
     }
 

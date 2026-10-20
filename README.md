@@ -11,12 +11,12 @@ A Turkish-first, bilingual AI book editor built with Laravel 10, Breeze, Blade, 
 - Encrypted per-user OpenRouter keys; optional server-key development mode.
 - Cached model discovery using the server key. Free models are excluded and output prices are filtered by environment limits.
 - Queued editing in adjustable word-sized chunks (default 2,500), with paragraph boundaries preserved where possible. The model returns plain prose; `jfcherng/php-diff` computes changes.
-- Inline deletions/insertions, accept/reject/undo controls, pending-change navigation and clean preview. Keyboard shortcuts: Alt+Up / Alt+Down.
+- Inline deletions/insertions, accept/reject/undo controls, pending-change navigation. Keyboard shortcuts: Alt+Up / Alt+Down.
 - A persistent editorial footer with processed-chunk progress and Pause, Resume and Restart controls. Completed suggestions remain; untouched chunks retain their source text. Metadata inference still uses a modal.
-- Optional prompt learning: review decisions are collected without LLM calls. After more than 20 suggestions, a dismissible header hint offers to update the prompt. Learning runs only when requested, in batches of up to 50 decisions; shared presets remain unchanged.
+- Optional prompt learning: review decisions are collected without LLM calls. After more than 20 suggestions, a dismissible footer hint offers to update the prompt. Learning runs only when requested, in batches of up to 50 decisions; shared presets remain unchanged.
 - Reruns materialize accepted suggestions, archive the old review and use the latest prompt with a newly chosen model/chunk size.
 - Chunk navigation with Previous/Next, a clickable 1/N jump control and processed-book progress. Only the selected chunk is fetched.
-- Quill plain-text editing alongside interactive diffs, with 10-second debounced autosave, Save now and per-chunk optimistic concurrency checks. Review completed chunks while later chunks run.
+- Quill text and italic editing with an Edit/Review switch, with 10-second debounced autosave, Save now and per-chunk optimistic concurrency checks. Review completed chunks while later chunks run.
 - Immutable original chunk text, author revision snapshots and an AI-edit counter per chunk.
 - Manuscript snapshots, prompt restoration and read-only historical reviews.
 - DOCX exports with genuine `w:ins` / `w:del` revisions. Approved AI changes and manual edits are included by default. Pending suggestions can be included for export only; rejected suggestions are excluded.
@@ -141,6 +141,7 @@ Set these values in `.env`:
 OPENROUTER_API_KEY=your_server_api_key
 OPENROUTER_MODEL=openai/gpt-4o-mini
 OPENROUTER_DEV_MODE=false
+OPENROUTER_PROVIDERS=deepseek,anthropic,openai,moonshotai,google,qwen
 OPENROUTER_MIN_OUTPUT_PRICE=0.01
 OPENROUTER_MAX_OUTPUT_PRICE=30
 ```
@@ -150,7 +151,7 @@ The server key is required for model discovery in both modes:
 - **Normal mode (`false`):** users register and save their own inference API key in Settings.
 - **Development mode (`true`):** inference uses the server key, so you can test without adding a personal key to each account. Calls are charged to the server key's account.
 
-The price limits are USD per million **output** tokens. Free models are always excluded. Choose a default model that appears in the filtered dropdown; availability and pricing can change.
+The price limits are USD per million **output** tokens. Free models and models containing “batch” in their name or ID are always excluded. Provider groups follow `OPENROUTER_PROVIDERS`, with each group sorted by output price from cheapest to most expensive. Choose a default model that appears in the filtered dropdown; availability and pricing can change.
 
 ### 5. Create tables and install the presets
 
@@ -204,7 +205,7 @@ Use Nginx/PHP-FPM for a deployed site; `php artisan serve` is only for developme
 4. Upload a DOCX from **Your manuscripts / Eserlerim**.
 5. Wait for the inferred title and language, and adjust them if needed.
 6. The editorial setup dialog opens automatically for a book with no editing runs. Select presets to see the prompt update immediately, then customize it if needed.
-7. Choose a model and chunk size, then start an editing pass. Starting saves the settings automatically. Reopen the dialog from the page heading for subsequent passes; Escape or Cancel closes it without saving.
+7. Choose a model and chunk size, then start an editing pass. Starting saves the settings automatically. Reopen the dialog from the sticky status band for subsequent passes; Escape or Cancel closes it without saving.
 8. Review and accept/reject suggestions. Download DOCX to export tracked changes; optionally include pending suggestions in that export.
 
 ### Optional: frontend development and email
@@ -228,7 +229,7 @@ Use your mail provider's actual host, port and encryption settings.
 
 ## How the browser queue works
 
-An authenticated, visible app page polls `/queue/state` and sends `/queue/step` AJAX requests. Each step performs **at most one** LLM completion on the PHP server, saves its result and returns. API keys stay on the server. Nothing schedules the next step except the browser.
+The visible editor sends one combined `/books/{book}/state` poll every three seconds and uses `/queue/step` for actual LLM work. Book settings, run progress and visible-chunk revision tokens suppress unchanged payload sections. Other queue-enabled pages poll `/queue/state` every three seconds; the `/books` library neither polls nor advances the queue. Each step performs **at most one** LLM completion on the PHP server, saves its result and returns. API keys stay on the server. Nothing schedules the next step except the browser.
 
 - Upload inference sends the first 2,000 words to infer title/language.
 - Editing sends one pending chunk and saves its text, diff and progress.
@@ -254,6 +255,7 @@ After changing `.env`, use `php artisan config:clear` locally or `php artisan co
 OPENROUTER_API_KEY=your-server-key
 OPENROUTER_MODEL=openai/gpt-4o-mini
 OPENROUTER_DEV_MODE=false
+OPENROUTER_PROVIDERS=deepseek,anthropic,openai,moonshotai,google,qwen
 OPENROUTER_MIN_OUTPUT_PRICE=0.01
 OPENROUTER_MAX_OUTPUT_PRICE=30
 ```
@@ -263,6 +265,7 @@ OPENROUTER_MAX_OUTPUT_PRICE=30
 | `OPENROUTER_API_KEY` | Always authenticates model discovery. Never exposed to the browser. |
 | `OPENROUTER_DEV_MODE` | When `true`, all inference uses the server key instead of users' keys. Keep `false` on shared production deployments. |
 | `OPENROUTER_MODEL` | Initial default model for users who have not selected one. It must pass the configured model filters. |
+| `OPENROUTER_PROVIDERS` | Comma-separated provider IDs allowed in dropdowns, in display order. |
 | `OPENROUTER_MIN_OUTPUT_PRICE` | Inclusive minimum USD per million output tokens. |
 | `OPENROUTER_MAX_OUTPUT_PRICE` | Inclusive maximum USD per million output tokens. |
 
@@ -281,11 +284,11 @@ API references: [OpenRouter models](https://openrouter.ai/docs/api/api-reference
 
 The imported text remains immutable. The working manuscript is a separate value. Each editing run snapshots its prompt, context, language, model and chunk size. Review decisions are stored on diff segments; accepted changes become the next working text when rerunning or manually editing.
 
-The chunk workspace shows the proposed text in Quill alongside the interactive diff. Pending suggestions appear in the editable text; rejected suggestions use their original wording. Typing does not pause work or archive the active review. Edits save after ten seconds, or immediately when navigating chunks or clicking a review control. Diff results refresh after saving; they are always compared with the immutable original source. Manually modifying a suggestion replaces that affected span with an accepted author revision. Unrelated pending/accepted/rejected decisions remain intact. A stale save produces a conflict without overwriting the draft.
+The sticky status band provides chunk navigation, Edit/Review, Editorial setup and Download DOCX. Edit opens the proposed text in Quill; Review uses the full workspace for interactive diffs. Pending suggestions appear in the editable text; rejected suggestions use their original wording. Typing does not pause work or archive the active review. Edits save after ten seconds, or immediately when navigating chunks or clicking a review control. Switching back to Review immediately computes a local diff from the unsaved draft, without sending or waiting for a save request. Autosave continues on its existing timer; the server recomputes the persisted revisions when saving completes. Diffs always compare with the immutable original source. The Saved indicator disappears after three seconds. Manually modifying a suggestion replaces that affected span with an accepted author revision. Unrelated pending/accepted/rejected decisions remain intact. A stale save produces a conflict without overwriting the draft.
 
 Each chunk has a `revision` and `ai_edit_count`. Only successfully committed model outputs increment the AI counter; manual edits do not. Restart opens setup and creates a new pass from accepted/manual text. With the same chunk size, boundaries, original text and counts are carried forward. Changing the chunk size creates new chunk identities/counters and maps their baselines back to the original imported text. Existing completed chunks are initialized with a count of one by the migration because older call counts were not recorded.
 
-Processed chunks remain editable while other chunks are running. Unprocessed chunks have a clear label and are read-only until their result arrives. Source snapshots, not rich-text HTML, are stored: Quill is restricted to plain text to match the DOCX import/export contract. Export includes accepted and manual edits by default, with pending suggestions included only when explicitly selected. Export revision authors are labelled `LE Editor`; they are not a keystroke-by-keystroke audit trail.
+Processed chunks remain editable while other chunks are running. Unprocessed chunks have a clear label and are read-only until their result arrives. Source snapshots, not rich-text HTML, are stored: Quill supports plain text and real italics. Italic spans are stored as Unicode ranges alongside review segments; arbitrary rich-text HTML is not stored. Export includes accepted and manual edits by default, with pending suggestions included only when explicitly selected. Export revision authors are labelled `LE Editor`; they are not a keystroke-by-keystroke audit trail.
 
 A rerun discards pending/rejected suggestions from the new draft. Exporting pending suggestions never accepts them in the app. The original DOCX is retained privately until the book/account is deleted.
 
@@ -374,4 +377,24 @@ Tailwind 3's build-only dependency chain also has reported pattern-parser denial
 
 Reported run cost covers chunk-editing calls, not metadata or prompt-learning calls. Failed requests may still be billed. Prompt learning uses the book's selected model. No automatic budget enforcement or billing system is included. Manuscripts are capped at 20 MB upload / one million extracted characters; large histories and histories will need retention policies at scale; live polling already loads only the selected chunk.
 
-Quill is pinned to 2.0.2; the application uses plain-text input/output and does not use Quill HTML export. This avoids adding the HTML-export advisory reported for 2.0.3.
+Quill is pinned to 2.0.2; the application reads text and italic attributes from Quill Delta operations and does not use Quill HTML export. This avoids adding the HTML-export advisory reported for 2.0.3.
+
+The library provides History, reviewed DOCX download and confirmed deletion for each book. History contains editorial runs, manuscript snapshots and prompt versions. Downloads from the library include approved and author changes only and never approve pending suggestions. The status band and work footer are both 40 pixels high, with compact controls and footer notifications.
+
+### Fiction / non-fiction presets and italic emphasis
+
+Editorial setup offers Fiction and Nonfiction modes. Nine shared goals (grammar/spelling, vocabulary, sentence flow, clarity, formal tone, casual tone, emotional impact, poetic language and italics) each have separate English and Turkish instructions for both genres. Switching genres carries shared selections across and immediately rebuilds the combined prompt. General presets remain shared; poetry presets appear under Fiction. Existing specialized and custom presets remain available. Formal and casual goals are mutually exclusive.
+
+The italic toolbar button (or Ctrl+I) applies real formatting to selected manuscript text. Formatting-only edits participate in autosave and immediate draft review. AI italic suggestions can be accepted or rejected, and unapproved italics are excluded from the default DOCX download. Word exports use `w:i` and tracked formatting revisions (`w:rPrChange`) for otherwise unchanged text; inserted text retains tracked insertion markup. Accepted italics survive reruns, rechunking and manuscript-version restoration. DOCX imports now retain original paragraph and run formatting, including inherited heading/character styles. The original package is reused during export.
+
+The LLM continues to return the edited excerpt, not a JSON diff. A narrow `<le-italic>...</le-italic>` convention carries italic spans; the server validates and removes these markers before storing text. Browser rendering creates text and emphasis nodes rather than executing model HTML. Native Word rendering of this new formatting has not been manually verified; OOXML structure and range mapping are covered by automated tests.
+
+Deploy this update with `php artisan migrate --force` and `npm ci && npm run build`. The migration adds the new built-in presets without changing book prompts or custom presets. `php artisan db:seed --force` remains idempotent.
+
+### Original DOCX formatting and efficient state updates
+
+Imports preserve heading styles, bold/italic/underline/strike, fonts, font sizes, colors, superscript/subscript and the original paragraph/run properties. Word export reuses the uploaded package, retaining its style definitions, numbering, section settings, page headers/footers and table containers. Untouched paragraphs are copied intact; edited text inherits the styles of its source passage. The browser presents a text-oriented view of these styles, not Word’s full paginated layout. Embedded fields, drawing placement and other complex content inside edited paragraphs are not guaranteed to retain full fidelity.
+
+Older uploads recover formatting lazily from their retained original DOCX when the extracted text matches the stored original. Missing or mismatching originals cannot be recovered automatically. Run `php artisan migrate --force` and rebuild assets for the formatting metadata update.
+
+Editor state responses contain compact queue status and three change tokens. Unchanged polls omit manuscript text, prompts and run details; progress-only updates omit the chunk. Changed chunks exclude duplicate source/output copies, loaded ORM relations and raw Word XML. The library contains no queue notice and makes no queue/state polling requests. Work resumes when a queue-enabled page (such as the editor) is open; an already-running request can still finish after leaving it.

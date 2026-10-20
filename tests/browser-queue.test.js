@@ -4,10 +4,10 @@ import { startBrowserQueue } from '../resources/js/browser-queue.js';
 
 const flush = () => new Promise(resolve => setImmediate(resolve));
 function surface() {
-    const handlers = {};
+    const handlers = {}, classes = new Set();
     return {
         open: false, hidden: false, textContent: '', value: 0,
-        classList: { toggle() {}, add() {}, remove() {} },
+        classList: { toggle(name, force) { if (force) classes.add(name); else classes.delete(name); }, add(name) { classes.add(name); }, remove(name) { classes.delete(name); }, contains(name) { return classes.has(name); } },
         addEventListener(name, fn) { handlers[name] = fn; },
         dispatchEvent() {},
         emit(name, event = {}) { return handlers[name]?.(event); },
@@ -112,4 +112,33 @@ test('a refreshed paused page does not run jobs, and Escape cannot dismiss busy 
     let prevented = false;
     ui.$('#queue-dialog').emit('cancel', { preventDefault() { prevented = true; } });
     assert.equal(prevented, true);
+});
+
+test('footer spinner and active wording follow editing, pause and completion', async () => {
+    const ui = setup(active);
+    await flush();
+    assert.equal(ui.$('#header-ai-spinner').classList.contains('hidden'), false);
+    assert.equal(ui.$('#header-ai-status').textContent, 'queue_editing');
+    await ui.$('#queue-cancel').emit('click', { target: {} });
+    assert.equal(ui.$('#header-ai-spinner').classList.contains('hidden'), true);
+    await ui.$('#queue-resume').emit('click', { target: {} });
+    ui.setState({ ...active, task: null });
+    await ui.tick();
+    assert.equal(ui.$('#header-ai-spinner').classList.contains('hidden'), true);
+    assert.equal(ui.$('#header-ai-status').textContent, 'completed');
+});
+
+test('editor uses one combined poll at three-second intervals without queue state GETs', async () => {
+    const elements = new Map(), calls = [], window = surface(), document = surface();
+    const $ = id => { if (!elements.has(id)) elements.set(id, surface()); return elements.get(id); };
+    let timer, delay, polls = 0;
+    startBrowserQueue({ $, window, document, t: key => key,
+        setInterval: (fn, ms) => { timer = fn; delay = ms; },
+        pollState: async () => { polls++; return {paused: true, working: false, task: null}; },
+        request: async url => { calls.push(url); return {}; },
+    });
+    await flush();
+    assert.equal(delay, 3000); assert.equal(polls, 1); assert.deepEqual(calls, []);
+    window.emit('pageshow'); await flush(); assert.equal(polls, 1);
+    await timer(); assert.equal(polls, 2); assert.deepEqual(calls, []);
 });

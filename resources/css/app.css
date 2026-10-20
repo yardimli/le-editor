@@ -9,7 +9,7 @@
     h1, h2 { font-family: Georgia, 'Times New Roman', serif; }
     h1 { @apply text-3xl md:text-4xl; } h2 { @apply text-2xl; }
     label { @apply block text-sm font-medium mb-2; }
-    input:not([type=checkbox]):not([type=hidden]):not([type=file]), select, textarea { background: var(--sheet); border: 1px solid var(--line); color: var(--ink); @apply rounded-lg w-full text-sm focus:ring-1; --tw-ring-color: var(--accent); }
+    input:not([type=checkbox]):not([type=radio]):not([type=hidden]):not([type=file]), select, textarea { background: var(--sheet); border: 1px solid var(--line); color: var(--ink); @apply rounded-lg w-full text-sm focus:ring-1; --tw-ring-color: var(--accent); }
     input[type=checkbox] { color: var(--accent); border-color: var(--line); @apply rounded focus:ring-1; }
     button, a, input, select, textarea, summary { @apply focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4; outline-color: var(--accent); }
     button:disabled { @apply opacity-50 cursor-wait; }
@@ -111,3 +111,27 @@ body:has(.work-footer) { padding-bottom: 110px; }
 @media (max-width: 760px) { .chunk-workspace { grid-template-columns: 1fr; } .chunk-navigation { flex-wrap: wrap; } .chunk-navigation-progress { order: 4; flex-basis: 100%; } .work-footer-inner { flex-wrap: wrap; gap: .5rem; } .chunk-sheet { padding-inline: 1rem; } }
 
 .chunk-workspace.hidden { display: none; }
+/* Both persistent bands reserve the same compact height. Scroll controls on narrow screens. */
+.status-band-inner, .work-footer-inner { height: 40px; flex-wrap: nowrap; padding-block: 0; gap: .5rem; overflow-x: auto; }
+.status-band .chunk-navigation { flex: 1; min-width: 250px; flex-wrap: nowrap; margin: 0; gap: .4rem; }
+.status-band .chunk-navigation-progress { order: initial; flex: 1; min-width: 55px; gap: 0; }
+#book-progress-label { font-size: .6rem; margin: 0; white-space: nowrap; }
+.status-actions { display: flex; gap: .4rem; flex-shrink: 0; }
+.status-band button, .work-footer button { padding: .25rem .5rem; font-size: .7rem; line-height: 1.3; white-space: nowrap; }
+.work-footer-status { display: flex; align-items: center; min-width: 160px; gap: .5rem; font-size: .7rem; }
+.work-footer-status progress { flex: 1; min-width: 40px; max-width: 150px; }
+#work-label { white-space: nowrap; }
+#work-error { margin: 0; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.work-footer .header-notification { margin-left: auto; flex-shrink: 0; max-width: 45%; }
+#editor-learning-hint { white-space: nowrap; }
+body:has(.work-footer) { padding-bottom: 45px; }
+.editor-heading { padding-block: 1rem; }
+.editor-heading #book-title { font-family: inherit; font-size: 1rem; font-weight: 700; line-height: 1.5; }
+.ql-toolbar.ql-snow { border-color: var(--line); border-radius: .5rem .5rem 0 0; background: var(--soft); }
+.ql-snow .ql-stroke { stroke: var(--ink); }
+.ql-snow .ql-fill { fill: var(--ink); }
+.ql-snow .ql-picker { color: var(--ink); }
+.ql-snow .ql-editor em, .manuscript-text em { font-style: italic; }
+.preset-option.hidden { display: none; }
+
+input[type=radio] { width: 1rem; height: 1rem; color: var(--accent); border-color: var(--line); flex-shrink: 0; }

@@ -84,7 +84,7 @@ return [
     'go' => 'Git',
     'edit_chunk' => 'Bu parçayı düzenle',
     'chunk_not_processed' => 'Bu parça üzerinde henüz editöryal çalışma yapılmadı.',
-    'chunk_edit_hint' => 'Önerilen metni düzenlerken yan taraftaki değişiklikleri inceleyebilirsiniz. Düzenlemeler 10 saniye sonra otomatik kaydedilir. Bir öneriyi düzenlediğinizde sizin metniniz kullanılır; diğer önerilerin kararları korunur.',
+    'chunk_edit_hint' => 'Önerilen metni düzenleyin; seçtiğiniz sözcükleri italik düğmesiyle vurgulayın. Taslak değişikliklerini hemen görmek için inceleme görünümüne geçin. Düzenlemeler 10 saniye sonra kaydedilir; diğer önerilerin kararları korunur.',
     'ai_edit_count' => 'Yapay zekâ düzenleme sayısı',
     'suggestion_changed' => 'Düzenlemeler kaydedilirken bu öneri değişti. Güncel farkları inceleyin.',
     'learning_offer' => '20’den fazla öneriyi incelediniz. Bu geri bildirimlerle düzenleme talimatınızı güncellemek ister misiniz?',

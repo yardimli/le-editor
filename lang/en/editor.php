@@ -84,7 +84,7 @@ return [
     'go' => 'Go',
     'edit_chunk' => 'Edit this chunk',
     'chunk_not_processed' => 'Editorial work has not been done on this chunk yet.',
-    'chunk_edit_hint' => 'Edit the proposed text here while reviewing changes alongside it. Edits autosave after 10 seconds. Editing a suggestion replaces it with your wording; unrelated suggestions keep their decisions.',
+    'chunk_edit_hint' => 'Edit the proposed text and use the italic button to emphasize selected words. Switch to Review to see your draft changes immediately. Edits autosave after 10 seconds; unrelated suggestions keep their decisions.',
     'ai_edit_count' => 'AI editing passes',
     'suggestion_changed' => 'That suggestion changed while saving your edits. Review the updated diff.',
     'learning_offer' => 'You have reviewed more than 20 suggestions. Update your editing prompt from this feedback?',

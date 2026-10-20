@@ -114,3 +114,45 @@ Current validation: 49 PHP tests passed (218 assertions), plus 4 JavaScript sche
 - [x] Verify chunk concurrency, manual revision mapping, optional learning, UI build and migrations.
 
 Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript tests passed, production assets built and migration applied. Browser-verified simultaneous Quill editing/review, saving before review actions, direct chunk navigation, pending labels and live completion updates using a temporary isolated fixture. No paid completion calls. Preview: `docs/chunk-editor-preview.png`.
+
+## Compact editor and library actions
+- [x] Move chunk navigation and setup/download/Edit controls into the sticky status band.
+- [x] Move notifications into the compact 40px work footer with small queue controls.
+- [x] Hide Saved after three seconds; simplify the book heading and remove its back link.
+- [x] Switch between full-width Quill and review; compute unsaved diffs immediately without interrupting autosave.
+- [x] Preserve original text and unrelated suggestion decisions in local draft previews.
+- [x] Link book history from the library; add reviewed DOCX download and confirmed deletion.
+- [x] Validate with 60 PHP tests (730 assertions), 12 JavaScript tests, Blade compilation and production build.
+
+## Model provider selection and setup refinements
+- [x] Add OPENROUTER_PROVIDERS to .env, example and configuration; include filters in catalog cache identity.
+- [x] Group dropdowns by configured provider and sort by output cost, retaining price/free-model filters and excluding batch models.
+- [x] Show a footer spinner for active LLM work and use active editing wording instead of Queued/Sırada.
+- [x] List presets in one column with their main title only.
+- [x] Add coverage for provider ordering/filtering/cache changes and footer spinner lifecycle.
+
+## Genre-aware goals and real italics
+- [x] Add all nine requested goals with separate fiction/nonfiction instructions in Turkish and English.
+- [x] Persist the book genre; retain shared selections and immediately recombine wording when switching genre.
+- [x] Keep general/custom presets and existing specialized presets; separate the library by genre.
+- [x] Add real Quill italics, immediate draft preview, autosave and reviewable AI emphasis.
+- [x] Preserve accepted italic ranges through reruns, rechunking and version restoration.
+- [x] Export real Word italics and tracked formatting; omit pending formatting by default.
+- [x] Browser-check genre selection, prompt recombination, italic editing, immediate review and saving with isolated test data.
+- [x] Apply migration, validate bilingual presets/formatting/exports with tests, and build production assets.
+- [ ] Manually verify italic revision appearance in native Microsoft Word (OOXML validated in tests).
+
+## Imported DOCX formatting
+- [x] Extract original run/paragraph properties and resolve inherited heading/character styles.
+- [x] Preserve source styles in Quill/review, through text edits, and in tracked Word exports using the original package.
+- [x] Treat imported italics as baseline formatting; support rejection of italic removal.
+- [x] Recover formatting for older uploads when the retained source text matches.
+- [x] Validate headings, bold, inherited italics, colors, table containers and page headers with OOXML tests and browser verification.
+- [x] Apply formatting metadata migration and capture docs/imported-formatting-preview.png.
+
+## Efficient browser polling
+- [x] Use one combined editor/queue poll every three seconds, without a second editor timer.
+- [x] Send only changed book, progress and chunk sections using revision tokens; unchanged response tested below 1 KB.
+- [x] Remove duplicate manuscript copies, raw Word properties and ORM relationships from browser chunk responses.
+- [x] Remove the library queue notice and all library queue/state polling.
+- [x] Verify combined polling interval, partial responses and no library queue bootstrap with automated tests.

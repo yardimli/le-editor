@@ -33,9 +33,109 @@ class EditorTest extends TestCase
             'prompt' => 'Polish lightly.', 'model' => 'test/paid', 'metadata_status' => 'complete']);
     }
 
+    public function test_library_links_to_owned_history_download_and_confirmed_delete(): void
+    {
+        $book = $this->book();
+        $this->actingAs($book->user)->get('/books')->assertOk()
+            ->assertSee(route('books.activity', $book), false)
+            ->assertSee(route('books.export', $book), false)
+            ->assertSee('data-confirm=', false);
+        $this->get(route('books.activity', $book))->assertOk()->assertSee($book->title);
+        $this->actingAs(User::factory()->create())->get(route('books.activity', $book))->assertNotFound();
+    }
+
+    public function test_genre_presets_are_bilingual_distinct_and_idempotent(): void
+    {
+        $this->seed(); $this->seed();
+        $this->assertDatabaseCount('prompt_templates', 28);
+        foreach (['grammar', 'vocabulary', 'flow', 'clarity', 'formal', 'casual', 'emotion', 'poetic', 'italics'] as $key) {
+            $fiction = \App\Models\PromptTemplate::where('slug', "editorial-fiction-{$key}")->firstOrFail();
+            $nonfiction = \App\Models\PromptTemplate::where('slug', "editorial-nonfiction-{$key}")->firstOrFail();
+            foreach (['tr', 'en'] as $locale) {
+                $this->assertSame($fiction->names[$locale], $nonfiction->names[$locale]);
+                $this->assertNotSame($fiction->instructions[$locale], $nonfiction->instructions[$locale]);
+            }
+        }
+        $book = $this->book();
+        $this->actingAs($book->user)->patchJson("/books/{$book->id}", [
+            'title' => $book->title, 'language' => 'tr', 'prompt' => 'Edit carefully', 'learn' => true,
+            'prompt_version' => 1, 'editorial_genre' => 'nonfiction', 'italicize' => true,
+        ])->assertOk();
+        $this->getJson("/books/{$book->id}/state")->assertJsonPath('editorial_genre', 'nonfiction')->assertJsonPath('italicize', true);
+    }
+
+    public function test_manual_italics_save_export_and_rerun_preserve_formatting(): void
+    {
+        $this->catalog();
+        $book = $this->book(); $run = $this->runWithChanges($book); $chunk = $run->chunks()->first();
+        $text = app(\App\Services\ChunkReview::class)->text($chunk->segments);
+        $this->actingAs($book->user)->putJson("/books/{$book->id}/chunks/{$chunk->id}/text", [
+            'text' => $text, 'revision' => $chunk->revision, 'italics' => [[0, 3]],
+        ])->assertOk();
+        $formatting = app(\App\Services\Italics::class);
+        $this->assertSame([[0, 3]], $formatting->book($book->fresh()));
+        $path = app(Docx::class)->export($book->original_text, app(TextEditor::class)->rendered($book->fresh()), 'Test', [[0, 3]]);
+        $zip = new ZipArchive; $zip->open($path); $xml = $zip->getFromName('word/document.xml'); $zip->close(); unlink($path);
+        $this->assertStringContainsString('<w:i/>', $xml);
+        $this->postJson("/books/{$book->id}/run", ['model' => 'test/paid', 'chunk_size' => 101, 'version' => $book->fresh()->version])->assertOk();
+        $this->assertSame([[0, 3]], $formatting->book($book->fresh()));
+    }
+
+    public function test_ai_italic_only_suggestions_are_reviewable_and_optional_on_export(): void
+    {
+        $this->catalog(); app(OpenRouter::class)->models();
+        $book = $this->book(); $run = $this->runWithChanges($book);
+        $run->update(['status' => 'queued', 'completed_chunks' => 0, 'italicize' => true]);
+        $run->chunks()->update(['status' => 'pending', 'segments' => app(TextEditor::class)->diff($book->text, $book->text), 'input_text' => $book->text]);
+        Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop',
+            'message' => ['content' => "<le-italic>Old</le-italic> sentence.\n\nAnother paragraph."]]]])]);
+        (new EditChunk($run->id, app(BrowserQueue::class)->claim($book->user_id)))->handle(app(OpenRouter::class), app(TextEditor::class));
+        $chunk = $run->chunks()->first();
+        $this->assertSame('change', $chunk->segments[0]['type']);
+        $this->assertSame('pending', $chunk->segments[0]['status']);
+        $formatting = app(\App\Services\Italics::class);
+        $this->assertSame([], $formatting->book($book->fresh()));
+        $this->assertSame([[0, 3]], $formatting->book($book->fresh(), true));
+        $this->actingAs($book->user)->patchJson("/books/{$book->id}/chunks/{$chunk->id}", [
+            'index' => 0, 'status' => 'accepted', 'revision' => $chunk->revision,
+        ])->assertOk();
+        $this->assertSame([[0, 3]], $formatting->book($book->fresh()));
+        $path = app(Docx::class)->export($book->text, $book->text, 'Test', [[0, 3], [15, 22]]);
+        $zip = new ZipArchive; $zip->open($path); $xml = $zip->getFromName('word/document.xml'); $zip->close(); unlink($path);
+        $this->assertStringContainsString('<w:rPrChange', $xml);
+        $doc = new \DOMDocument; $this->assertTrue($doc->loadXML($xml));
+        $xp = new \DOMXPath($doc); $xp->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+        $this->assertSame('Old', $xp->query('//w:r[w:rPr/w:i]/w:t')->item(0)->textContent);
+        $this->assertSame('Another', $xp->query('//w:r[w:rPr/w:i]/w:t')->item(1)->textContent);
+    }
+
+    public function test_book_poll_returns_only_changed_sections_and_library_does_not_poll(): void
+    {
+        $book = $this->book(); $run = $this->runWithChanges($book);
+        $this->actingAs($book->user);
+        $initial = $this->getJson("/books/{$book->id}/state?chunk=1")->assertOk();
+        $tokens = $initial->json('tokens');
+        $known = http_build_query(['chunk' => 1, 'known_book' => $tokens['book'], 'known_run' => $tokens['run'], 'known_chunk' => $tokens['chunk']]);
+        $idle = $this->getJson("/books/{$book->id}/state?{$known}")->assertOk();
+        $this->assertSame(['queue', 'tokens'], array_keys($idle->json()));
+        $this->assertLessThan(1024, strlen($idle->getContent()));
+        $this->assertArrayNotHasKey('run', $initial->json('chunk'));
+        $this->assertArrayNotHasKey('source', $initial->json('chunk'));
+        $this->assertArrayNotHasKey('prompt', $initial->json('run'));
+        $run->update(['completed_chunks' => 0]);
+        $progress = $this->getJson("/books/{$book->id}/state?{$known}")->assertOk();
+        $this->assertArrayHasKey('run', $progress->json());
+        $this->assertArrayNotHasKey('chunk', $progress->json());
+        $this->assertArrayNotHasKey('prompt', $progress->json());
+        $chunk = $run->chunks()->first(); $chunk->increment('revision');
+        $changed = $this->getJson("/books/{$book->id}/state?{$known}")->assertOk();
+        $this->assertArrayHasKey('chunk', $changed->json());
+        $this->get('/books')->assertOk()->assertDontSee('id="queue-notice"', false)->assertDontSee('window.leQueue = true', false);
+    }
+
     private function catalog(): void
     {
-        config(['editor.api_key' => 'server-secret', 'editor.dev_mode' => true, 'editor.model' => 'test/paid']);
+        config(['editor.providers' => ['test'], 'editor.api_key' => 'server-secret', 'editor.dev_mode' => true, 'editor.model' => 'test/paid']);
         Cache::flush();
         Http::fake(['*/models' => Http::response(['data' => [
             ['id' => 'test/paid', 'name' => 'Paid', 'pricing' => ['completion' => '0.000002', 'prompt' => '0.000001'], 'context_length' => 100000],
@@ -177,6 +277,25 @@ class EditorTest extends TestCase
         $this->assertSame(['test/paid'], array_column($models, 'id'));
         $this->assertSame(2.0, $models[0]['output_price']);
         Http::assertSent(fn ($request) => $request->hasHeader('Authorization', 'Bearer server-secret'));
+    }
+
+    public function test_catalog_groups_allowed_providers_by_price_and_excludes_batch_models(): void
+    {
+        Cache::flush();
+        config(['editor.api_key' => 'server-secret', 'editor.providers' => ['openai', 'anthropic'], 'editor.min_output_price' => 1, 'editor.max_output_price' => 10]);
+        $model = fn ($id, $name, $price) => ['id' => $id, 'name' => $name, 'pricing' => ['completion' => (string) ($price / 1000000)]];
+        Http::fake(['*/models' => Http::response(['data' => [
+            $model('anthropic/low', 'Low', 2), $model('openai/high', 'High', 10),
+            $model('openai/low', 'Low', 1), $model('openai/batch-test', 'Test', 3),
+            $model('openai/hidden', 'Test BATCH', 3), $model('other/low', 'Low', 2),
+            $model('openai/too-low', 'Low', 0.5), $model('openai/too-high', 'High', 11),
+            $model('openai/free', 'Free', 0), $model('openai/test:free', 'Free variant', 2),
+        ]])]);
+        $models = app(OpenRouter::class)->models();
+        $this->assertSame(['openai/low', 'openai/high', 'anthropic/low'], array_column($models, 'id'));
+        $this->assertSame(['openai', 'openai', 'anthropic'], array_column($models, 'provider'));
+        config(['editor.providers' => ['anthropic']]);
+        $this->assertSame(['anthropic/low'], array_column(app(OpenRouter::class)->models(), 'id'));
     }
 
     public function test_email_header_control_characters_are_rejected(): void
@@ -497,6 +616,6 @@ class EditorTest extends TestCase
         $this->assertSame('Preserve this phrasing.', $book->fresh()->prompt);
         $this->assertDatabaseHas('prompt_revisions', ['book_id' => $book->id, 'prompt' => 'Polish lightly.']);
         $this->assertDatabaseHas('feedback', ['book_id' => $book->id, 'status' => 'complete']);
-        $this->assertDatabaseCount('prompt_templates', 10);
+        $this->assertDatabaseCount('prompt_templates', 28);
     }
 }

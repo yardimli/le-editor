@@ -3,12 +3,15 @@
 <div class="page-heading"><div><p class="eyebrow">LE EDITOR / {{ __('editor.presets') }}</p><h1>{{ __('editor.presets') }}</h1></div></div>
 <div class="grid lg:grid-cols-[1fr_350px] gap-8 items-start">
     <section class="grid md:grid-cols-2 gap-4">
-        @foreach($presets as $preset)
+        @foreach($presets->groupBy('genre') as $genre => $group)
+            <h2 class="md:col-span-2 mt-4">{{ __('editor.'.$genre) }}</h2>
+        @foreach($group as $preset)
             <article class="panel"><div class="flex gap-2"><span class="pill">{{ __('editor.'.$preset->genre) }}</span><span class="pill">{{ __('editor.level_'.$preset->intensity) }}</span></div>
                 <h2 class="mt-4 text-xl">{{ $preset->names[app()->getLocale()] }}</h2><p class="muted text-sm mt-3 leading-relaxed">{{ $preset->instructions[app()->getLocale()] }}</p>
                 <div class="mt-5 flex gap-3"><button class="quiet-button text-accent" data-copy-preset="{{ json_encode(['id' => $preset->user_id ? $preset->id : '', 'name' => $preset->names[app()->getLocale()], 'instruction' => $preset->instructions[app()->getLocale()], 'genre' => $preset->genre, 'intensity' => $preset->intensity]) }}">{{ __('editor.duplicate') }}</button>
                 @if($preset->user_id)<form action="{{ route('prompts.delete', $preset) }}" method="POST" data-confirm="{{ __('editor.delete_confirm') }}">@csrf @method('DELETE')<button class="quiet-button">{{ __('editor.delete') }}</button></form>@endif</div>
             </article>
+        @endforeach
         @endforeach
     </section>
     <aside class="panel lg:sticky lg:top-6"><h2>{{ __('editor.new_prompt') }}</h2>
