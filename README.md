@@ -201,8 +201,8 @@ Use Nginx/PHP-FPM for a deployed site; `php artisan serve` is only for developme
 3. Select an available default model, save, then test the saved connection.
 4. Upload a DOCX from **Your manuscripts / Eserlerim**.
 5. Wait for the inferred title and language, and adjust them if needed.
-6. Select one or more presets, combine them, customize the prompt and save the book settings.
-7. Choose a model and chunk size, then start an editing pass.
+6. The editorial setup dialog opens automatically for a book with no editing runs. Select presets to see the prompt update immediately, then customize it if needed.
+7. Choose a model and chunk size, then start an editing pass. Starting saves the settings automatically. Reopen the dialog from the page heading for subsequent passes; Escape or Cancel closes it without saving.
 8. Review and accept/reject suggestions. Download DOCX to export tracked changes; optionally include pending suggestions in that export.
 
 ### Optional: frontend development and email

@@ -80,6 +80,7 @@ if (window.leBook) {
     const input = $('#manuscript-input');
     const exportDialog = $('#export-dialog');
     const settings = $('#book-settings');
+    const setupDialog = $('#setup-dialog');
     let state = null, dirty = false, settingsDirty = false, busy = false, active = false;
     let deadline = 0, saving = null, polling = false, lastSignature = '', focusedChange = -1;
     let acknowledgedText = input.value;
@@ -157,6 +158,7 @@ if (window.leBook) {
             }
             if (!settingsDirty) {
                 $('#book-prompt').value = next.prompt || ''; book.promptVersion = next.prompt_version;
+                $$('.preset-checkbox').forEach(box => { box.checked = !!next.prompt?.includes(box.dataset.instruction); });
                 $('#book-name').value = next.title; $('#book-language').value = next.language;
                 $('#book-title').textContent = next.title;
             }
@@ -192,7 +194,15 @@ if (window.leBook) {
     input.addEventListener('input', () => { dirty = input.value !== acknowledgedText; deadline = Date.now() + 10000; updateIndicator(); });
     setInterval(() => { updateIndicator(); if (dirty && deadline && Date.now() >= deadline && !saving) saveText().catch(() => {}); }, 250);
     $('#save-now').addEventListener('click', () => saveText().catch(() => {}));
-    settings.addEventListener('input', () => { settingsDirty = true; });
+    settings.addEventListener('input', () => { settingsDirty = true; updateEstimate(); });
+    $('#open-setup').addEventListener('click', () => {
+        if (!busy && !active) setupDialog.showModal();
+    });
+    $('#cancel-setup').addEventListener('click', () => { if (!busy) setupDialog.close(); });
+    setupDialog.addEventListener('cancel', event => {
+        // Native dialogs ignore backdrop clicks. Escape closes unless submission is underway.
+        if (busy) event.preventDefault();
+    });
     async function saveSettings() {
         const data = Object.fromEntries(new FormData(settings));
         data.learn = settings.elements.learn.checked;
@@ -201,26 +211,35 @@ if (window.leBook) {
         book.promptVersion = result.prompt_version; settingsDirty = false;
         $('#book-title').textContent = data.title;
     }
-    settings.addEventListener('submit', async event => {
+    settings.addEventListener('submit', event => {
         event.preventDefault();
-        try { await saveSettings(); message(t('saved')); }
-        catch (error) { message(error.message, true); }
+        $('#run-form').requestSubmit();
     });
-    $('#combine-presets').addEventListener('click', () => {
+    $$('.preset-checkbox').forEach(box => box.addEventListener('change', () => {
         const selected = $$('.preset-checkbox:checked').map(box => box.dataset.instruction);
-        if (!selected.length) return;
         $('#book-prompt').value = selected.join('\n\n'); settingsDirty = true;
-    });
+        $('#prompt-live-status').textContent = t('setup_prompt_updated');
+        updateEstimate();
+    }));
     $('#run-form').addEventListener('submit', async event => {
         event.preventDefault(); if (busy || active) return;
+        if (!settings.reportValidity()) return;
         busy = true; $('#run-button').disabled = true;
+        $('#cancel-setup').disabled = true;
+        $('.setup-grid', setupDialog).inert = true;
+        $('#setup-error').classList.add('hidden');
         try {
             await saveText();
-            if (settingsDirty) await saveSettings();
+            await saveSettings();
             await request(`${base}/run`, 'POST', { model: $('#run-model').value, chunk_size: Number($('#chunk-size').value), version: book.version });
+            setupDialog.close();
             message(''); await refresh();
-        } catch (error) { message(error.message, true); }
-        finally { busy = false; $('#run-button').disabled = false; }
+        } catch (error) {
+            $('#setup-error').textContent = error.message;
+            $('#setup-error').classList.remove('hidden');
+            $('#setup-error').scrollIntoView({ block: 'nearest' });
+        }
+        finally { busy = false; $('#run-button').disabled = false; $('#cancel-setup').disabled = false; $('.setup-grid', setupDialog).inert = false; }
     });
     $('#retry-run').addEventListener('click', async () => {
         try { await request(`${base}/retry`, 'POST', {}); await refresh(); }
@@ -261,6 +280,7 @@ if (window.leBook) {
         if (dirty || settingsDirty) { event.preventDefault(); event.returnValue = t('unsaved'); }
     });
     window.addEventListener('queue-updated', () => { if (!busy) refresh(); });
+    if (book.needsSetup) setupDialog.showModal();
     refresh();
     setInterval(() => { if (!document.hidden && !busy) refresh(); }, 3000);
 }

@@ -71,4 +71,9 @@ return [
     'queue_learning' => 'Düzenleme talimatınız güncelleniyor',
     'queue_connection' => 'Bağlantı kesildi. Bağlantınızı kontrol edip yeniden deneyin.',
     'queue_waiting' => 'Mevcut isteğin tamamlanması bekleniyor…',
+    'setup_title' => 'Editöryal düzenleme ayarları',
+    'setup_hint' => 'Hazır talimatları seçin ve aşağıdaki talimatı inceleyin. Düzenlemeyi başlattığınızda ayarlarınız otomatik kaydedilir.',
+    'setup_presets_hint' => 'Bir seçeneği işaretlediğinizde veya kaldırdığınızda talimat seçiminize göre hemen yenilenir. Ardından talimatı özelleştirebilirsiniz.',
+    'setup_cancel' => 'Vazgeç',
+    'setup_prompt_updated' => 'Talimat, seçtiğiniz hazır talimatlara göre güncellendi.',
 ];

@@ -73,3 +73,10 @@
 .queue-spinner { display: inline-block; width: 1.5rem; height: 1.5rem; border: 3px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: queue-spin 1s linear infinite; }
 @keyframes queue-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .queue-spinner { animation-duration: 3s; } }
+
+.setup-dialog { max-width: 1200px; max-height: calc(100dvh - 2rem); overflow-y: auto; }
+.setup-grid { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(0, 1.6fr); gap: 1.25rem; align-items: start; }
+.preset-option { padding: .75rem; border: 1px solid var(--line); border-radius: .5rem; margin: 0; }
+.preset-option:has(input:checked) { background: var(--soft); border-color: var(--accent); }
+.setup-actions { position: sticky; bottom: -2rem; background: var(--sheet); border-top: 1px solid var(--line); padding: 1rem 0; margin-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 1rem; justify-content: space-between; align-items: center; }
+@media (max-width: 760px) { .setup-grid { grid-template-columns: 1fr; } .setup-dialog { padding: 1.25rem; } .setup-actions { bottom: -1.25rem; } }

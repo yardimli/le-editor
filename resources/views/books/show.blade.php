@@ -3,44 +3,11 @@
 <div id="book-editor">
     <div class="page-heading">
         <div><a href="{{ route('books.index') }}" class="eyebrow">← {{ __('editor.back') }}</a><h1 id="book-title" class="mt-3">{{ $book->title }}</h1></div>
-        <button class="button-secondary" id="open-export">{{ __('editor.export') }} ↗</button>
+        <div class="flex flex-wrap gap-3"><button type="button" class="button" id="open-setup">{{ __('editor.setup_title') }}</button><button class="button-secondary" id="open-export">{{ __('editor.export') }} ↗</button></div>
     </div>
     <div id="editor-message" class="notice hidden" role="alert"></div>
     <div id="metadata-message" class="notice {{ $book->metadata_status === 'complete' ? 'hidden' : '' }}">{{ __('editor.metadata_'.$book->metadata_status) }}</div>
-    <div class="editor-grid">
-        <aside class="space-y-5">
-            <section class="panel">
-                <p class="eyebrow">01 / {{ __('editor.prompt') }}</p>
-                <form id="book-settings" class="space-y-4 mt-5">
-                    <div><label for="book-name">{{ __('editor.title') }}</label><input id="book-name" name="title" value="{{ $book->title }}" required maxlength="255"></div>
-                    <div><label for="book-language">{{ __('editor.language') }}</label><select id="book-language" name="language"><option value="tr" @selected($book->language === 'tr')>Türkçe</option><option value="en" @selected($book->language === 'en')>English</option></select></div>
-                    <details><summary class="cursor-pointer font-semibold text-sm">{{ __('editor.presets') }}</summary>
-                        <div class="preset-list mt-3 space-y-3">
-                            @foreach($presets as $preset)
-                                <label class="check-label items-start"><input type="checkbox" class="preset-checkbox mt-1" value="{{ $preset->id }}" data-instruction="{{ $preset->instructions[app()->getLocale()] }}"><span>{{ $preset->names[app()->getLocale()] }}<small class="block muted">{{ __('editor.'.$preset->genre) }} · {{ __('editor.level_'.$preset->intensity) }}</small></span></label>
-                            @endforeach
-                        </div>
-                        <p class="hint">{{ __('editor.combine_hint') }}</p><button type="button" class="button-secondary mt-3 w-full" id="combine-presets">{{ __('editor.combine') }}</button>
-                    </details>
-                    <div><label for="book-prompt">{{ __('editor.prompt') }}</label><textarea id="book-prompt" name="prompt" rows="8" maxlength="10000">{{ $book->prompt }}</textarea></div>
-                    <div><label for="book-context">{{ __('editor.context') }}</label><textarea id="book-context" name="context" rows="3" maxlength="10000" placeholder="{{ __('editor.context_hint') }}">{{ $book->context }}</textarea></div>
-                    <label class="check-label"><input name="learn" type="checkbox" @checked($book->learn)> {{ __('editor.learn') }}</label>
-                    <button class="button-secondary w-full">{{ __('editor.save_settings') }}</button>
-                </form>
-                <p class="hint mt-3" id="learning-status" role="status"></p><button class="quiet-button hidden text-accent" id="retry-learning">{{ __('editor.retry_learning') }}</button>
-            </section>
-            <section class="panel">
-                <p class="eyebrow">02 / {{ __('editor.run') }}</p>
-                <form id="run-form" class="space-y-4 mt-5">
-                    <div><label for="run-model">{{ __('editor.model') }}</label><select id="run-model" name="model" required data-model-select data-current="{{ $book->model }}"><option value="">{{ __('editor.loading_models') }}</option></select><p class="hint model-error" role="alert"></p></div>
-                    <div><label for="chunk-size">{{ __('editor.chunk_size') }}</label><input id="chunk-size" name="chunk_size" type="number" min="100" max="10000" value="{{ $book->chunk_size }}" required></div>
-                    <p class="hint">{{ __('editor.rerun_hint') }}</p>
-                    <p class="text-sm" id="cost-estimate"></p><p class="hint">{{ __('editor.cost_hint') }}</p>
-                    <button class="button w-full" id="run-button">{{ __('editor.run') }} →</button>
-                </form>
-            </section>
-            <form action="{{ route('books.destroy', $book) }}" method="POST" data-confirm="{{ __('editor.delete_confirm') }}">@csrf @method('DELETE')<button class="quiet-button muted">{{ __('editor.delete') }}</button></form>
-        </aside>
+    <div>
         <section class="min-w-0">
             <div class="manuscript-toolbar">
                 <div class="flex gap-1 flex-wrap" role="tablist">
@@ -68,6 +35,51 @@
             </div>
         </section>
     </div>
+    <dialog id="setup-dialog" aria-labelledby="setup-title" aria-describedby="setup-hint" class="editor-dialog setup-dialog">
+        <h2 id="setup-title">{{ __('editor.setup_title') }}</h2>
+        <p id="setup-hint" class="muted mt-3 mb-6">{{ __('editor.setup_hint') }}</p>
+        <div id="setup-error" class="notice error hidden" role="alert"></div>
+        <div class="setup-grid">
+            <section class="panel">
+                    <div><h3 class="font-semibold text-sm">{{ __('editor.presets') }}</h3>
+                        <div class="setup-presets mt-3 grid sm:grid-cols-2 gap-3">
+                            @foreach($presets as $preset)
+                                <label class="check-label preset-option items-start"><input type="checkbox" class="preset-checkbox mt-1" value="{{ $preset->id }}" data-instruction="{{ $preset->instructions[app()->getLocale()] }}"><span>{{ $preset->names[app()->getLocale()] }}<small class="block muted">{{ __('editor.'.$preset->genre) }} · {{ __('editor.level_'.$preset->intensity) }}</small></span></label>
+                            @endforeach
+                        </div>
+                        <p class="hint">{{ __('editor.setup_presets_hint') }}</p>
+                    </div>
+            </section>
+            <div class="space-y-5">
+            <section class="panel setup-main">
+                <p class="eyebrow">01 / {{ __('editor.prompt') }}</p>
+                <form id="book-settings" class="space-y-4 mt-5">
+                    <div><label for="book-prompt">{{ __('editor.prompt') }}</label><textarea id="book-prompt" name="prompt" rows="10" maxlength="10000" required aria-describedby="prompt-live-status">{{ $book->prompt }}</textarea></div>
+                    <p id="prompt-live-status" class="hint" role="status" aria-live="polite"></p>
+                    <div><label for="book-name">{{ __('editor.title') }}</label><input id="book-name" name="title" value="{{ $book->title }}" required maxlength="255"></div>
+                    <div><label for="book-language">{{ __('editor.language') }}</label><select id="book-language" name="language"><option value="tr" @selected($book->language === 'tr')>Türkçe</option><option value="en" @selected($book->language === 'en')>English</option></select></div>
+                    <div><label for="book-context">{{ __('editor.context') }}</label><textarea id="book-context" name="context" rows="3" maxlength="10000" placeholder="{{ __('editor.context_hint') }}">{{ $book->context }}</textarea></div>
+                    <label class="check-label"><input name="learn" type="checkbox" @checked($book->learn)> {{ __('editor.learn') }}</label>
+                </form>
+                <p class="hint mt-3" id="learning-status" role="status"></p><button class="quiet-button hidden text-accent" id="retry-learning">{{ __('editor.retry_learning') }}</button>
+            </section>
+            <section class="panel">
+                <p class="eyebrow">02 / {{ __('editor.run') }}</p>
+                <form id="run-form" class="space-y-4 mt-5">
+                    <div><label for="run-model">{{ __('editor.model') }}</label><select id="run-model" name="model" required data-model-select data-current="{{ $book->model }}"><option value="">{{ __('editor.loading_models') }}</option></select><p class="hint model-error" role="alert"></p></div>
+                    <div><label for="chunk-size">{{ __('editor.chunk_size') }}</label><input id="chunk-size" name="chunk_size" type="number" min="100" max="10000" value="{{ $book->chunk_size }}" required></div>
+                    <p class="hint">{{ __('editor.rerun_hint') }}</p>
+                    <p class="text-sm" id="cost-estimate"></p><p class="hint">{{ __('editor.cost_hint') }}</p>
+
+                </form>
+            </section>
+        </div>
+        </div>
+        <div class="setup-actions">
+            <form action="{{ route('books.destroy', $book) }}" method="POST" data-confirm="{{ __('editor.delete_confirm') }}">@csrf @method('DELETE')<button class="quiet-button muted">{{ __('editor.delete') }}</button></form>
+            <div class="flex gap-3"><button type="button" class="button-secondary" id="cancel-setup">{{ __('editor.setup_cancel') }}</button><button type="submit" form="run-form" class="button" id="run-button">{{ __('editor.run') }} →</button></div>
+        </div>
+    </dialog>
     <dialog id="export-dialog" aria-labelledby="export-title" class="editor-dialog">
         <h2 id="export-title">{{ __('editor.export_title') }}</h2><p class="muted my-5">{{ __('editor.export_hint') }}</p>
         <form action="{{ route('books.export', $book) }}" method="GET" id="export-form"><label class="check-label"><input type="checkbox" name="include_pending" value="1"> {{ __('editor.include_pending') }}</label><div class="flex gap-3 mt-7"><button class="button">{{ __('editor.download') }}</button><button type="button" id="close-export" class="button-secondary">{{ __('editor.close') }}</button></div></form>
@@ -77,6 +89,6 @@
 @push('scripts')
 <script>
 window.leStrings = @js(__('editor'));
-window.leBook = @js(['id' => $book->id, 'version' => $book->version, 'promptVersion' => $book->prompt_version, 'locale' => app()->getLocale(), 'text' => $manuscript]);
+window.leBook = @js(['id' => $book->id, 'version' => $book->version, 'promptVersion' => $book->prompt_version, 'locale' => app()->getLocale(), 'text' => $manuscript, 'needsSetup' => $runs->isEmpty()]);
 </script>
 @endpush

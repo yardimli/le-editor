@@ -79,3 +79,11 @@ Book-local learned prompts never silently overwrite shared presets.
 - [ ] Browser acceptance on deployed Ubuntu/PHP-FPM: close/return, refresh, multiple tabs and cancel during a real provider request.
 
 Current validation: 49 PHP tests passed (218 assertions), plus 4 JavaScript scheduler tests. Production assets built, routes/Blade compiled successfully, and the browser-queue migration was applied to the configured database. Live Ubuntu/PHP-FPM and paid-provider browser acceptance remains pending.
+
+## Editorial setup dialog
+
+- [x] Move all sidebar controls into a large responsive dialog; manuscript uses the page width.
+- [x] Automatically open setup for books with no editing runs; add a heading button to reopen it.
+- [x] Update the editable prompt immediately when presets are selected or deselected.
+- [x] Save settings when starting; remove the separate Save and Combine buttons.
+- [x] Allow Escape/Cancel dismissal and ignore backdrop clicks; show submission errors inside the dialog.

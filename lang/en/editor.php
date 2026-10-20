@@ -71,4 +71,9 @@ return [
     'queue_learning' => 'Updating your editing prompt',
     'queue_connection' => 'Connection interrupted. Check your connection and retry.',
     'queue_waiting' => 'Waiting for the current request to finish…',
+    'setup_title' => 'Editorial setup',
+    'setup_hint' => 'Choose presets and review the prompt below. Your settings are saved automatically when you start editing.',
+    'setup_presets_hint' => 'Checking or unchecking a preset immediately rebuilds the prompt from your selection. You can then customize it.',
+    'setup_cancel' => 'Cancel',
+    'setup_prompt_updated' => 'Prompt updated from your selected presets.',
 ];
