@@ -127,4 +127,8 @@ return [
     'continue_unfinished' => 'Continue unfinished chunks',
     'redo_all' => 'Redo all chunks',
     'no_unfinished_chunks' => 'All chunks are complete. Choose redo all to start another pass.',
+    'api_totals' => 'All requests for this book',
+    'api_total_tokens' => 'Total tokens',
+    'api_total_cost' => 'Total cost (USD)',
+    'api_totals_partial' => 'Totals include reported usage only; some requests have missing usage or cost.',
 ];

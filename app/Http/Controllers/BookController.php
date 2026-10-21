@@ -40,7 +40,8 @@ class BookController extends Controller
     public function apiHistory(Book $book)
     {
         $this->owner($book);
-        return view('books.api-history', ['book' => $book, 'logs' => $book->apiLogs()->latest('id')->paginate(50)]);
+        $totals = $book->apiLogs()->selectRaw('COALESCE(SUM(total_tokens), 0) as tokens, COALESCE(SUM(cost), 0) as cost, COUNT(*) - COUNT(total_tokens) as missing_tokens, COUNT(*) - COUNT(cost) as missing_cost')->first();
+        return view('books.api-history', ['book' => $book, 'logs' => $book->apiLogs()->latest('id')->paginate(50), 'totals' => $totals]);
     }
 
     public function index()
@@ -64,6 +65,7 @@ class BookController extends Controller
         $book = Book::create([
             'user_id' => $request->user()->id, 'title' => pathinfo($request->file('file')->getClientOriginalName(), PATHINFO_FILENAME),
             'original_formatting' => $import['formatting'], 'italics' => $import['italics'],
+            'original_filename' => $request->file('file')->getClientOriginalName(),
             'original_path' => $path, 'original_text' => $import['text'], 'text' => $import['text'], 'model' => $model,
         ]);
         $book->versions()->create(['text' => $book->text, 'italics' => $book->italics, 'reason' => 'import']);
@@ -425,7 +427,7 @@ class BookController extends Controller
         $this->owner($book);
         $request->validate(['include_pending' => 'nullable|boolean']);
         $path = $docx->export($book->original_text, $editor->rendered($book, $request->boolean('include_pending')), $book->title, app(\App\Services\Italics::class)->book($book, $request->boolean('include_pending')), Storage::exists($book->original_path) ? Storage::path($book->original_path) : null);
-        return response()->download($path, 'manuscript-'.$book->id.'.docx',
+        return response()->download($path, app(\App\Services\ExportFilename::class)->next($book),
             ['Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])->deleteFileAfterSend();
     }
 

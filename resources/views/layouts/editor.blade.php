@@ -49,7 +49,7 @@
     <main class="page-shell">
         @if(session('status'))<div class="notice" role="status">{{ session('status') }}</div>@endif
         @if($errors->any())<div class="notice error" role="alert"><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif
-        @unless(request()->routeIs('books.index'))
+        @unless(request()->routeIs('books.index', 'books.api-history', 'prompts', 'settings', 'profile.*'))
             @include('components.browser-queue')
         @endunless
         @yield('content')

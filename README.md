@@ -416,3 +416,9 @@ Thinking-capable models with numeric budgets receive 0.5×/1×/2× the estimated
 Starting from editorial setup offers **Continue unfinished chunks** or **Redo all chunks** when completed chunks exist. Continuing retains chunk boundaries, completed suggestions, decisions and manual edits, applying the updated prompt/model/thinking settings only to remaining chunks. Redo all starts a fresh pass with approved edits applied and other suggestions discarded.
 
 AI-only paragraph-end space/tab changes are automatically rejected and omitted from review. Original spacing is retained; paragraph-break changes, internal word spacing and manual edits remain reviewable. Deploy migrations to clean existing cosmetic suggestions.
+
+DOCX exports use `le-editor-YYYY-MM-DD-A-original.docx`. The date uses the application timezone. Each book advances its daily suffix through A–Z and stays at Z for further exports that day; the next day starts at A. New uploads preserve their original filename. Older uploads without a stored original name use `manuscript-ID.docx`.
+
+API history summaries display per-request tokens and USD cost. The compact heading includes totals across all pages for that book, including reported usage from failed requests. Missing usage is flagged rather than treated as confirmed zero cost.
+
+API history, prompt library, settings and account pages do not mount the queue notice or initiate queue polling.

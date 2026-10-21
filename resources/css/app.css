@@ -147,3 +147,7 @@ input[type=radio] { width: 1rem; height: 1rem; color: var(--accent); border-colo
 .setup-dialog form { margin-top: .5rem; }
 .setup-dialog .space-y-4 > :not([hidden]) ~ :not([hidden]), .setup-dialog .space-y-5 > :not([hidden]) ~ :not([hidden]) { margin-top: .5rem; }
 .setup-dialog .setup-actions { bottom: -1rem; padding: .5rem 0; margin-top: .75rem; }
+
+.page-heading.api-history-heading { padding: .75rem 0; gap: .75rem; }
+.api-history-heading h1 { font-family: inherit; font-size: 1rem; line-height: 1.5; font-weight: 700; }
+.api-history-heading .count-badge { font-size: .875rem; padding: .25rem .5rem; }

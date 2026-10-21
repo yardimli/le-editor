@@ -127,4 +127,8 @@ return [
     'continue_unfinished' => 'Tamamlanmamış parçalara devam et',
     'redo_all' => 'Tüm parçaları yeniden düzenle',
     'no_unfinished_chunks' => 'Tüm parçalar tamamlandı. Yeni bir tur için tümünü yeniden düzenlemeyi seçin.',
+    'api_totals' => 'Bu eserin tüm istekleri',
+    'api_total_tokens' => 'Toplam token',
+    'api_total_cost' => 'Toplam maliyet (USD)',
+    'api_totals_partial' => 'Toplamlara yalnızca bildirilen değerler dahildir; bazı isteklerde kullanım veya maliyet eksiktir.',
 ];

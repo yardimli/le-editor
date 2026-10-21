@@ -71,14 +71,14 @@ class ApiHistoryTest extends TestCase
         for ($i = 1; $i <= 51; $i++) {
             $book->apiLogs()->create(['user_id' => $book->user_id, 'model' => 'test/model',
                 'purpose' => 'editing', 'status' => 'completed', 'request_body' => 'request-'.$i,
-                'response_body' => '<script>unsafe</script>']);
+                'response_body' => '<script>unsafe</script>', 'total_tokens' => 100, 'cost' => '0.01']);
         }
         $url = route('books.api-history', $book);
         $this->actingAs($book->user)->get('/books')->assertSee($url, false);
         $this->get($url)->assertOk()->assertViewHas('logs', fn ($logs) => $logs->count() === 50
             && $logs->first()->request_body === 'request-51' && $logs->last()->request_body === 'request-2')
             ->assertSee('&lt;script&gt;unsafe&lt;/script&gt;', false)->assertDontSee('<script>unsafe</script>', false);
-        $this->get($url.'?page=2')->assertOk()->assertViewHas('logs', fn ($logs) => $logs->count() === 1);
+        $this->get($url.'?page=2')->assertOk()->assertViewHas('totals', fn ($totals) => (int) $totals->tokens === 5100 && abs((float) $totals->cost - .51) < .000001)->assertViewHas('logs', fn ($logs) => $logs->count() === 1);
         $this->actingAs(User::factory()->create())->get($url)->assertNotFound();
         $book->delete();
         $this->assertDatabaseCount('api_logs', 0);
