@@ -6,7 +6,9 @@ export function startBrowserQueue({ $, request, t, window, document, setInterval
         const learning = !queue.paused && task?.kind === 'learning';
         $('#header-ai-spinner').classList.toggle('hidden', queue.paused || (!task && !queue.working));
         $('#header-ai-cancel').classList.toggle('hidden', !learning);
-        if (learning) $('#header-ai-status').textContent = t('queue_learning');
+        const otherBook = !queue.paused && window.leBook && task?.book_id && Number(task.book_id) !== Number(window.leBook.id);
+        if (otherBook) $('#header-ai-status').textContent = `${t(task.kind === 'editing' ? 'queue_other_book' : 'queue_other_task')}: ${task.title}`;
+        else if (learning) $('#header-ai-status').textContent = t('queue_learning');
         else if (!queue.paused && task) $('#header-ai-status').textContent = t(`queue_${task.kind}`);
         else if (queue.paused) $('#header-ai-status').textContent = t('queue_paused_short');
         else if (!task && !queue.working && lastKind === 'learning') {

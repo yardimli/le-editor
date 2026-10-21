@@ -131,4 +131,7 @@ return [
     'api_total_tokens' => 'Total tokens',
     'api_total_cost' => 'Total cost (USD)',
     'api_totals_partial' => 'Totals include reported usage only; some requests have missing usage or cost.',
+    'queue_other_book' => 'Another book is being edited',
+    'queue_other_task' => 'Processing another book',
+    'queue_this_book_waiting' => 'This book is waiting',
 ];

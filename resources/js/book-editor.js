@@ -135,6 +135,10 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
         const paused = window.leQueueState?.paused;
         $('#work-label').textContent = run
             ? `${t(paused && running ? 'cancelled' : run.status === 'queued' ? 'running' : run.status)} · ${completed} / ${total} · ${percent}%` : t('no_run');
+        const task = window.leQueueState?.task;
+        if (!paused && task?.book_id && Number(task.book_id) !== Number(book.id)) {
+            $('#work-label').textContent = `${t(task.kind === 'editing' ? 'queue_other_book' : 'queue_other_task')}: ${task.title} · ${t('queue_this_book_waiting')}`;
+        }
         $('#work-error').textContent = run?.error ? t(run.error) : '';
         $('#pause-work').classList.toggle('hidden', !running || paused);
         $('#resume-work').classList.toggle('hidden', !run || (!paused && !['cancelled', 'failed'].includes(run.status)));

@@ -131,4 +131,7 @@ return [
     'api_total_tokens' => 'Toplam token',
     'api_total_cost' => 'Toplam maliyet (USD)',
     'api_totals_partial' => 'Toplamlara yalnızca bildirilen değerler dahildir; bazı isteklerde kullanım veya maliyet eksiktir.',
+    'queue_other_book' => 'Başka bir eser düzenleniyor',
+    'queue_other_task' => 'Başka bir eser işleniyor',
+    'queue_this_book_waiting' => 'Bu eser bekliyor',
 ];

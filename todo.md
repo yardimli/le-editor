@@ -181,3 +181,5 @@ Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript t
 - [x] Compact API-history heading, collapsed-row token/cost details, and book-wide totals across pagination.
 
 - [x] Remove queue notice and queue bootstrap from API history, prompts, settings and account pages.
+
+- [x] Show the active book title and waiting status when the account queue is processing a different book.

@@ -422,3 +422,5 @@ DOCX exports use `le-editor-YYYY-MM-DD-A-original.docx`. The date uses the appli
 API history summaries display per-request tokens and USD cost. The compact heading includes totals across all pages for that book, including reported usage from failed requests. Missing usage is flagged rather than treated as confirmed zero cost.
 
 API history, prompt library, settings and account pages do not mount the queue notice or initiate queue polling.
+
+When the account queue is processing another book, the editor footer names that book and indicates that the displayed book is waiting.
