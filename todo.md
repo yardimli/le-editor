@@ -200,3 +200,5 @@ Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript t
 - [x] Exclude Lite/coding and legacy generations; deduplicate release dates only, preserving distinct semantic versions, tiers and sizes.
 
 - [x] Filter Qwen Thinking/Instruct and sub-100B total-size models, preserving large MoE models and unspecified sizes.
+
+- [x] Exclude Nano Banana image models and refresh the catalog cache.

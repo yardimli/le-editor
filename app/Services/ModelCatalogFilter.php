@@ -11,6 +11,7 @@ class ModelCatalogFilter
             $id = strtolower($model['id']);
             $label = strtolower(($model['name'] ?? '').' '.$id);
             if (preg_match('/\b(lite|code|coder|codex)\b/i', $label)) return true;
+            if (preg_match('/\bnano[\s_-]*banana\b/i', $label)) return true;
             if (str_starts_with($id, 'qwen/')) {
                 if (preg_match('/\b(thinking|instruct)\b/i', $label)) return true;
                 // A22B denotes active parameters, not the model's total size.

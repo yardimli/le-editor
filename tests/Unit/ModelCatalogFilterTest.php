@@ -28,6 +28,15 @@ class ModelCatalogFilterTest extends TestCase {
         $this->assertSame(['Qwen 100B','Qwen 235B A22B','Qwen 2.4T A95B','Qwen Plus','Other 27B Thinking Instruct'], $result);
     }
 
+    public function test_nano_banana_is_excluded_by_name_or_id(): void {
+        $models = collect([
+            ['id'=>'google/gemini-nano-banana-2.1', 'name'=>'Google model'],
+            ['id'=>'google/image-model', 'name'=>'Google: NANO BANANA 2'],
+            ['id'=>'openai/gpt-5.4-nano', 'name'=>'GPT-5.4 Nano'],
+        ]);
+        $this->assertSame(['openai/gpt-5.4-nano'], (new ModelCatalogFilter)->apply($models)->pluck('id')->all());
+    }
+
     public function test_semantic_versions_are_not_collapsed(): void {
         $models = collect([
             ['id'=>'moonshotai/kimi-k2.6', 'name'=>'Kimi K2.6'],
