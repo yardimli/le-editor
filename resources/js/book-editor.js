@@ -1,5 +1,6 @@
+import { sliceStyles } from './source-styles.js';
 import { chunkStyles, annotateStyles } from './source-styles';
-import { italicRanges, applyItalics, italicOps, readItalics, appendFormatted } from './italics';
+import { italicRanges, applyItalics, italicOps, readItalics, appendFormatted, sliceRanges } from './italics';
 import { draftSegments } from './draft-review';
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
@@ -65,10 +66,22 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
     function renderDiff(chunk) {
         const view = $('#diff-view'); view.replaceChildren();
         const counts = { accepted: 0, rejected: 0, pending: 0 };
-        const body = document.createElement('div'); body.className = 'whitespace-pre-wrap'; view.append(body);
+        const container = document.createElement('div'); container.className = 'review-paragraphs'; view.append(container);
+        let body;
+        const nextParagraph = () => { body = document.createElement('p'); container.append(body); };
+        nextParagraph();
         if (!chunk.segments) body.textContent = chunkText(chunk);
         (chunk.segments || []).forEach((segment, index) => {
-            if (segment.type === 'equal') { appendFormatted(body, segment.after, segment.italics, segment.styles); return; }
+            if (segment.type === 'equal') {
+                let offset = 0;
+                segment.after.split('\n\n').forEach((part, i) => {
+                    if (i) { nextParagraph(); offset += 2; }
+                    const length = Array.from(part).length;
+                    appendFormatted(body, part, sliceRanges(segment.italics || [], offset, length), sliceStyles(segment.styles || [], offset, length));
+                    offset += length;
+                });
+                return;
+            }
             counts[segment.status]++;
             const span = document.createElement('span'); span.className = 'change'; span.dataset.status = segment.status;
             if (segment.before) { const del = document.createElement('del'); appendFormatted(del, segment.before, segment.before_italics, segment.before_styles); span.append(del); }

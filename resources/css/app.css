@@ -135,3 +135,5 @@ body:has(.work-footer) { padding-bottom: 45px; }
 .preset-option.hidden { display: none; }
 
 input[type=radio] { width: 1rem; height: 1rem; color: var(--accent); border-color: var(--line); flex-shrink: 0; }
+
+.review-paragraphs > p { white-space: pre-wrap; line-height: 1.55; margin: 0 0 .65em; min-height: 1em; }

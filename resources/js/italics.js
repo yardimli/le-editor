@@ -52,6 +52,9 @@ export function appendFormatted(parent, text, ranges = [], styles = []) {
         const a=bounds[i],b=bounds[i+1];if(a===b)continue;
         const attrs=styles.find(s=>s.start<=a&&s.end>a)?.attributes||{};
         const node=document.createElement(ranges.some(([start,end])=>start<=a&&end>a)?'em':'span');
-        styleNode(node,attrs);node.textContent=chars.slice(a,b).join('');parent.append(node);
+        styleNode(node,attrs);node.textContent=chars.slice(a,b).join('');
+        const previous = parent.lastElementChild;
+        if (previous && previous.tagName === node.tagName && previous.getAttribute('style') === node.getAttribute('style') && !previous.className) previous.textContent += node.textContent;
+        else parent.append(node);
     }
 }

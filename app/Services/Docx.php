@@ -31,7 +31,15 @@ class Docx
                 $start = $offset;
                 foreach ($xp->query('.//w:t[not(ancestor::w:del)] | .//w:br | .//w:tab', $paragraph) as $node) {
                     $part = match ($node->localName) { 'br' => "\n", 'tab' => "\t", default => $node->textContent };
-                    $formatting['runs'][] = array_merge($styles->run($node, $xp, $paragraphStyle), ['start' => $offset, 'end' => $offset + mb_strlen($part)]);
+                    $span = array_merge($styles->run($node, $xp, $paragraphStyle), ['start' => $offset, 'end' => $offset + mb_strlen($part)]);
+                    $last = array_key_last($formatting['runs']);
+                    if ($part !== '') {
+                        if ($last !== null && $formatting['runs'][$last]['end'] === $offset
+                            && $formatting['runs'][$last]['xml'] === $span['xml']
+                            && $formatting['runs'][$last]['attributes'] === $span['attributes']) {
+                            $formatting['runs'][$last]['end'] = $span['end'];
+                        } else { $formatting['runs'][] = $span; }
+                    }
                     $text .= $part; $offset += mb_strlen($part);
                 }
                 $formatting['paragraphs'][] = array_merge($paragraphStyle, ['start' => $start, 'end' => $offset]);

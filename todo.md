@@ -160,3 +160,8 @@ Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript t
 - [x] Default new manuscripts to 1,000-word chunks while preserving existing choices.
 - [x] Persist full OpenRouter completion request/response logs, failures, usage and cost without API keys.
 - [x] Add owner-only per-book API history, newest first, with 50-record pagination and cascade deletion.
+
+- [x] Exclude image-named models from the model catalog and invalidate the previous catalog cache.
+
+- [x] Remove redundant review heading; render compact review paragraphs and merge identical adjacent spans.
+- [x] Coalesce identical imported runs and preserve namespace declarations during DOCX export.

@@ -151,7 +151,7 @@ The server key is required for model discovery in both modes:
 - **Normal mode (`false`):** users register and save their own inference API key in Settings.
 - **Development mode (`true`):** inference uses the server key, so you can test without adding a personal key to each account. Calls are charged to the server key's account.
 
-The price limits are USD per million **output** tokens. Free models and models containing “batch” in their name or ID are always excluded. Provider groups follow `OPENROUTER_PROVIDERS`, with each group sorted by output price from cheapest to most expensive. Choose a default model that appears in the filtered dropdown; availability and pricing can change.
+The price limits are USD per million **output** tokens. Free models and models containing “batch” or “image” in their name or ID (case-insensitive) are always excluded. Provider groups follow `OPENROUTER_PROVIDERS`, with each group sorted by output price from cheapest to most expensive. Choose a default model that appears in the filtered dropdown; availability and pricing can change.
 
 ### 5. Create tables and install the presets
 
@@ -404,3 +404,5 @@ Editor state responses contain compact queue status and three change tokens. Unc
 New manuscripts default to 1,000 words per chunk; existing book settings are preserved. Run `php artisan migrate --force` and `npm run build` when deploying this update.
 
 Each book’s **API history** link lists completion requests newest first, 50 per page, including metadata inference, editorial passes, and prompt learning. The database stores full request and response bodies (including failed responses), HTTP status, input/output/total tokens and provider-reported USD cost. Missing usage is shown as not reported. Authentication headers are excluded and echoed API keys are redacted. Logs contain manuscript content, are accessible only to the book owner, and are deleted with the book. Catalog lookups are not manuscript requests and are not included.
+
+Review renders paragraph boundaries with compact spacing and coalesces identical adjacent visual styles. Import keeps paragraph boundaries and merges identical neighboring Word runs without changing text. LLM payloads contain manuscript text and optional `<le-italic>` markers, not browser HTML or font CSS. Export retains namespace declarations on detached Word properties, including modern revision attributes.

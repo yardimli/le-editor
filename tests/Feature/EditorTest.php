@@ -279,7 +279,7 @@ class EditorTest extends TestCase
         Http::assertSent(fn ($request) => $request->hasHeader('Authorization', 'Bearer server-secret'));
     }
 
-    public function test_catalog_groups_allowed_providers_by_price_and_excludes_batch_models(): void
+    public function test_catalog_groups_allowed_providers_by_price_and_excludes_batch_and_image_models(): void
     {
         Cache::flush();
         config(['editor.api_key' => 'server-secret', 'editor.providers' => ['openai', 'anthropic'], 'editor.min_output_price' => 1, 'editor.max_output_price' => 10]);
@@ -287,6 +287,7 @@ class EditorTest extends TestCase
         Http::fake(['*/models' => Http::response(['data' => [
             $model('anthropic/low', 'Low', 2), $model('openai/high', 'High', 10),
             $model('openai/low', 'Low', 1), $model('openai/batch-test', 'Test', 3),
+            $model('openai/picture', 'Test IMAGE Generation', 3), $model('openai/image-test', 'Test', 3),
             $model('openai/hidden', 'Test BATCH', 3), $model('other/low', 'Low', 2),
             $model('openai/too-low', 'Low', 0.5), $model('openai/too-high', 'High', 11),
             $model('openai/free', 'Free', 0), $model('openai/test:free', 'Free variant', 2),

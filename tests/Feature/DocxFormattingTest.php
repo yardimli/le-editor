@@ -39,6 +39,22 @@ class DocxFormattingTest extends TestCase
         $zip->addFromString('[Content_Types].xml',$types);$zip->close();return $path;
     }
 
+    public function test_export_keeps_extension_namespaces_in_detached_properties(): void
+    {
+        $path = $this->source(); $output = null;
+        try {
+            $zip = new ZipArchive; $zip->open($path);
+            $xml = $zip->getFromName('word/document.xml');
+            $xml = str_replace('<w:document ', '<w:document xmlns:w16du="http://schemas.microsoft.com/office/word/2023/wordml/word16du" ', $xml);
+            $xml = str_replace('<w:keepNext/>', '<w:keepNext/><w:rPr><w:ins w:id="9" w16du:dateUtc="2026-10-21T00:00:00Z"/></w:rPr>', $xml);
+            $zip->addFromString('word/document.xml', $xml); $zip->close();
+            $import = app(Docx::class)->import($path);
+            $current = "New paragraph\n\n".$import['text'];
+            $output = app(Docx::class)->export($import['text'], $current, 'Test', [[37,43]], $path);
+            $this->assertSame($current, app(Docx::class)->import($output)['text']);
+        } finally { unlink($path); if ($output) unlink($output); }
+    }
+
     public function test_import_resolves_headings_character_styles_and_direct_formatting(): void
     {
         $path = $this->source();

@@ -60,6 +60,15 @@ class OoxmlFormatting
         return $attrs;
     }
 
+    // Importing into a standalone document declares inherited namespaces on the fragment.
+    private function standaloneXml(DOMElement $element): string
+    {
+        $doc = new DOMDocument;
+        $copy = $doc->importNode($element, true);
+        $doc->appendChild($copy);
+        return $doc->saveXML($copy);
+    }
+
     public function paragraph(DOMElement $p, DOMXPath $xp): array
     {
         $pr = $xp->query('./w:pPr', $p)->item(0);
@@ -67,7 +76,7 @@ class OoxmlFormatting
         $attrs = array_merge($this->defaults, $this->style($style));
         $outline = $xp->query('./w:pPr/w:outlineLvl', $p)->item(0);
         if ($outline) { $level = (int) $outline->getAttributeNS(self::NS, 'val'); $attrs['header'] = $level < 6 ? $level + 1 : false; }
-        return ['xml' => $pr ? $p->ownerDocument->saveXML($pr) : '', 'attributes' => $attrs];
+        return ['xml' => $pr ? $this->standaloneXml($pr) : '', 'attributes' => $attrs];
     }
 
     public function run(DOMElement $node, DOMXPath $xp, array $paragraph): array
@@ -75,7 +84,7 @@ class OoxmlFormatting
         $r = $xp->query('ancestor::w:r[1]', $node)->item(0);
         $pr = $r ? $xp->query('./w:rPr', $r)->item(0) : null;
         $style = $r ? $xp->query('./w:rPr/w:rStyle', $r)->item(0)?->getAttributeNS(self::NS, 'val') : null;
-        return ['xml' => $pr ? $node->ownerDocument->saveXML($pr) : '',
+        return ['xml' => $pr ? $this->standaloneXml($pr) : '',
             'attributes' => array_merge($paragraph['attributes'], $this->style($style), $this->properties($pr))];
     }
 }

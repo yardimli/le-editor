@@ -28,7 +28,7 @@
             <div class="manuscript-sheet chunk-sheet">
                 <div id="save-indicator" class="save-indicator hidden" role="status"><span>{{ __('editor.saved') }}</span><button type="button" class="underline ml-2 hidden" id="save-now">{{ __('editor.save_now') }}</button></div>
                 <div data-panel="review">
-                    <section><h2 class="text-lg mb-3">{{ __('editor.review') }}</h2><div id="diff-view" class="manuscript-text"></div></section>
+                    <section><div id="diff-view" class="manuscript-text"></div></section>
                 </div>
                 <div data-panel="edit" class="hidden"><section><h2 class="text-lg mb-3">{{ __('editor.edit_chunk') }}</h2><p class="hint mb-3">{{ __('editor.chunk_edit_hint') }}</p><div id="chunk-editor"></div></section>
                 </div>
