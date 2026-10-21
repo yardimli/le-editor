@@ -187,3 +187,5 @@ Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript t
 - [x] Show the other-book waiting message only once in the footer, retaining the activity spinner.
 
 - [x] Warn before starting with a non-default model; recommend the available env default, with unchecked explicit override and cancel back to setup.
+
+- [x] Resume/start only the selected book without reviving other paused books.

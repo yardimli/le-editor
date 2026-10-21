@@ -426,3 +426,5 @@ API history, prompt library, settings and account pages do not mount the queue n
 When the account queue is processing another book, the editor footer names that book and indicates that the displayed book is waiting.
 
 Before starting with a different model, setup recommends the configured default when it exists in the filtered catalog. The warning starts with an unchecked override: Start editing uses the default unless the user explicitly keeps the selected model. Cancel/Escape returns to setup without saving or starting the run.
+
+Resuming a book or starting an editorial pass leaves other cancelled books paused. The account lock still permits only one request at a time; pause remains account-wide.

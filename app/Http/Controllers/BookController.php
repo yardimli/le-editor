@@ -69,7 +69,7 @@ class BookController extends Controller
             'original_path' => $path, 'original_text' => $import['text'], 'text' => $import['text'], 'model' => $model,
         ]);
         $book->versions()->create(['text' => $book->text, 'italics' => $book->italics, 'reason' => 'import']);
-        app(BrowserQueue::class)->resume(auth()->id());
+        app(BrowserQueue::class)->resume(auth()->id(), false);
         return redirect()->route('books.show', $book)->with('status', __('editor.import_notice'));
     }
 
@@ -316,7 +316,7 @@ class BookController extends Controller
             $locked->update(['text' => $text, 'active_run_id' => $run->id, 'model' => $data['model'],
                 'chunk_size' => $data['chunk_size'], 'version' => $locked->version + 1]);
         });
-        app(BrowserQueue::class)->resume(auth()->id());
+        app(BrowserQueue::class)->resume(auth()->id(), false);
         return response()->json(['ok' => true]);
     }
 
@@ -333,10 +333,10 @@ class BookController extends Controller
         DB::transaction(function () use ($book) {
             $locked = Book::lockForUpdate()->findOrFail($book->id);
             $run = $locked->activeRun()->lockForUpdate()->first();
-            abort_unless($run && in_array($run->status, ['failed', 'cancelled']), 409);
+            abort_unless($run && in_array($run->status, ['failed', 'cancelled', 'queued', 'running']), 409);
             $run->update(['status' => 'queued', 'error' => null]);
         });
-        app(BrowserQueue::class)->resume(auth()->id());
+        app(BrowserQueue::class)->resume(auth()->id(), false);
         return response()->json(['ok' => true]);
     }
 

@@ -225,8 +225,7 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
     $('#resume-work').addEventListener('click', async event => {
         event.target.disabled = true;
         try {
-            if (['failed', 'cancelled'].includes(state?.run?.status)) await request(`${base}/retry`, 'POST', {});
-            else await request('/queue/resume', 'POST', {});
+            await request(`${base}/retry`, 'POST', {});
             await refresh(true);
         } catch (error) { message(error.message, true); }
         finally { event.target.disabled = false; }

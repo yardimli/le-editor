@@ -190,6 +190,22 @@ class EditorTest extends TestCase
         $this->assertSame($run->id, $book->fresh()->active_run_id);
     }
 
+    public function test_resuming_second_book_does_not_restart_first_book(): void
+    {
+        $first = $this->book(); $firstRun = $this->runWithChanges($first);
+        $second = $this->book($first->user); $secondRun = $this->runWithChanges($second);
+        foreach ([$firstRun, $secondRun] as $run) {
+            $run->update(['status' => 'queued', 'completed_chunks' => 0]);
+            $run->chunks()->update(['status' => 'pending']);
+        }
+        app(BrowserQueue::class)->pause($first->user_id);
+        $this->actingAs($first->user)->postJson("/books/{$second->id}/retry")->assertOk();
+        $this->assertSame('cancelled', $firstRun->fresh()->status);
+        $this->assertSame('queued', $secondRun->fresh()->status);
+        $this->assertSame($second->id, app(BrowserQueue::class)->state($first->user_id)['task']['book_id']);
+        $this->assertFalse($first->user->fresh()->llm_paused);
+    }
+
     public function test_browser_requests_process_one_chunk_at_a_time_and_resume_after_return(): void
     {
         $this->catalog(); app(OpenRouter::class)->models();
