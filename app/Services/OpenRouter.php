@@ -24,7 +24,7 @@ class OpenRouter
     {
         $cacheKey = 'openrouter.models.'.hash('sha256', implode('|', [
             config('editor.min_output_price'), config('editor.max_output_price'),
-            config('editor.api_key'), implode(',', config('editor.providers')), 'provider-catalog-v3',
+            config('editor.api_key'), implode(',', config('editor.providers')), 'provider-catalog-v4',
         ]));
         return Cache::remember($cacheKey, 3600, function () {
             if (!config('editor.api_key')) {
@@ -35,18 +35,32 @@ class OpenRouter
             if (!$response->successful()) {
                 throw new RuntimeException('catalog_unavailable');
             }
-            return collect($response->json('data', []))->filter(function ($model) {
+            $eligible = collect($response->json('data', []))->filter(function ($model) {
                 $price = $model['pricing']['completion'] ?? null;
                 $outputs = $model['architecture']['output_modalities'] ?? ['text'];
                 $provider = strtolower(explode('/', $model['id'] ?? '')[0]);
                 return in_array($provider, config('editor.providers'), true)
                     && !str_contains(strtolower(($model['name'] ?? '').' '.($model['id'] ?? '')), 'batch')
                     && !str_contains(strtolower(($model['name'] ?? '').' '.($model['id'] ?? '')), 'image')
+                    && !str_contains(strtolower($model['name'] ?? ''), 'audio')
+                    && !str_contains(strtolower($model['name'] ?? ''), 'preview')
                     && is_numeric($price) && (float) $price > 0
                     && !str_ends_with($model['id'], ':free')
                     && in_array('text', $outputs)
                     && (float) $price * 1000000 >= config('editor.min_output_price')
                     && (float) $price * 1000000 <= config('editor.max_output_price');
+            });
+            $normalizeName = fn ($name) => trim(preg_replace('/\s+/u', ' ', mb_strtolower($name)));
+            $names = [];
+            foreach ($eligible as $model) {
+                $provider = strtolower(explode('/', $model['id'])[0]);
+                $names[$provider][$normalizeName($model['name'])] = true;
+            }
+            return $eligible->reject(function ($model) use ($names, $normalizeName) {
+                if (!preg_match('/\bpro\b/iu', $model['name'])) return false;
+                $baseName = $normalizeName(preg_replace('/\bpro\b/iu', '', $model['name']));
+                $provider = strtolower(explode('/', $model['id'])[0]);
+                return isset($names[$provider][$baseName]);
             })->map(fn ($model) => [
                 'id' => $model['id'], 'name' => $model['name'],
                 'provider' => strtolower(explode('/', $model['id'])[0]),

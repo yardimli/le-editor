@@ -432,3 +432,5 @@ Resuming a book or starting an editorial pass leaves other cancelled books pause
 Export uses original Word paragraph boundaries and distinguishes double soft line breaks inside a paragraph, preventing missing paragraph-anchor errors.
 
 Word exports set proofing language from the book’s manuscript language (`tr-TR` or `en-US`), overriding inherited run languages and applying it to document styles and headers/footers. This does not add language-change review flags or change in-app review decisions. Word needs the corresponding proofing tools installed.
+
+The model catalog also excludes names containing “audio” or “preview” (case-insensitive). A Pro variant is hidden when the same provider has an otherwise identical non-Pro name in the eligible catalog; standalone Pro models remain available.

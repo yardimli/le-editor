@@ -361,6 +361,25 @@ class EditorTest extends TestCase
         $this->assertSame(['anthropic/low'], array_column(app(OpenRouter::class)->models(), 'id'));
     }
 
+    public function test_catalog_excludes_audio_preview_and_only_matching_pro_variants(): void
+    {
+        Cache::flush();
+        config(['editor.api_key' => 'server-secret', 'editor.providers' => ['openai', 'anthropic'], 'editor.min_output_price' => 1, 'editor.max_output_price' => 10]);
+        $model = fn ($id, $name, $price = 2) => ['id' => $id, 'name' => $name, 'pricing' => ['completion' => (string) ($price / 1000000)]];
+        Http::fake(['*/models' => Http::response(['data' => [
+            $model('openai/base', 'Model 1'), $model('openai/pro', 'Model 1 PRO'),
+            $model('openai/audio', 'Model Audio'), $model('openai/preview', 'Model PREVIEW'),
+            $model('openai/standalone', 'Unique Pro'), $model('openai/word', 'Prototype'),
+            $model('anthropic/other-pro', 'Model 1 Pro'),
+            $model('openai/expensive-base', 'Another', 20), $model('openai/available-pro', 'Another Pro'),
+        ]])]);
+        $ids = array_column(app(OpenRouter::class)->models(), 'id');
+        $this->assertNotContains('openai/pro', $ids);
+        $this->assertNotContains('openai/audio', $ids);
+        $this->assertNotContains('openai/preview', $ids);
+        foreach (['openai/base', 'openai/standalone', 'openai/word', 'anthropic/other-pro', 'openai/available-pro'] as $id) $this->assertContains($id, $ids);
+    }
+
     public function test_email_header_control_characters_are_rejected(): void
     {
         $this->postJson('/register', ['name' => 'Test', 'email' => "test@example.com\r\nBcc: attacker@example.com",

@@ -194,3 +194,5 @@ Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript t
 - [x] Fix DOCX paragraph-anchor mismatch when original paragraphs contain double soft breaks.
 
 - [x] Set DOCX proofing language from manuscript language, including runs/styles, without adding formatting revisions.
+
+- [x] Exclude audio/preview names and duplicate Pro variants while retaining standalone Pro models; refresh catalog cache version.
