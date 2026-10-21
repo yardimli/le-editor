@@ -430,3 +430,5 @@ Before starting with a different model, setup recommends the configured default 
 Resuming a book or starting an editorial pass leaves other cancelled books paused. The account lock still permits only one request at a time; pause remains account-wide.
 
 Export uses original Word paragraph boundaries and distinguishes double soft line breaks inside a paragraph, preventing missing paragraph-anchor errors.
+
+Word exports set proofing language from the book’s manuscript language (`tr-TR` or `en-US`), overriding inherited run languages and applying it to document styles and headers/footers. This does not add language-change review flags or change in-app review decisions. Word needs the corresponding proofing tools installed.

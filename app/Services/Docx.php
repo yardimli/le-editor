@@ -53,7 +53,7 @@ class Docx
     }
 
     /** Generate an OOXML package with genuine w:ins/w:del revisions. */
-    public function export(string $original, string $current, string $title, array $italics = [], ?string $sourcePath = null): string
+    public function export(string $original, string $current, string $title, array $italics = [], ?string $sourcePath = null, string $language = 'tr'): string
     {
         $source = null; $format = ['runs' => [], 'paragraphs' => []];
         if ($sourcePath) {
@@ -193,7 +193,7 @@ class Docx
             }
         }
         $body = preg_replace_callback('/w:id="0"/', function () use (&$id) { return 'w:id="'.(++$id).'"'; }, $body);
-        if ($sourcePath) return $this->exportIntoSource($sourcePath, $body);
+        if ($sourcePath) return $this->setProofingLanguage($this->exportIntoSource($sourcePath, $body), $language);
         $body = preg_replace('/ data-le-source="[0-9]+"/', '', $body);
         $path = tempnam(storage_path('app'), 'export-');
         $zip = new ZipArchive;
@@ -211,8 +211,52 @@ class Docx
             .'<w:document xmlns:w="'.self::NS.'"><w:body>'.$body
             .'<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body></w:document>');
         $zip->close();
+        return $this->setProofingLanguage($path, $language);
+    }
+    private function setProofingLanguage(string $path, string $language): string
+    {
+        $locale = $language === 'en' ? 'en-US' : 'tr-TR';
+        $zip = new ZipArchive;
+        if ($zip->open($path) !== true) throw new RuntimeException('invalid_docx');
+        try {
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $name = $zip->getNameIndex($i);
+                if (!preg_match('~^word/(document|styles|header[0-9]*|footer[0-9]*|footnotes|endnotes)\.xml$~', $name)) continue;
+                $doc = new DOMDocument;
+                if (!$doc->loadXML($zip->getFromName($name), LIBXML_NONET)) throw new RuntimeException('invalid_docx');
+                $xp = new DOMXPath($doc); $xp->registerNamespace('w', self::NS);
+                // Direct run properties override inherited English styles, including tracked text.
+                foreach (iterator_to_array($xp->query('//w:r')) as $run) {
+                    if (!$xp->query('./w:rPr', $run)->length) $run->insertBefore($doc->createElementNS(self::NS, 'w:rPr'), $run->firstChild);
+                }
+                // Paragraph-mark properties keep the chosen language when typing at paragraph ends.
+                foreach (iterator_to_array($xp->query('//w:p')) as $paragraph) {
+                    $pr = $xp->query('./w:pPr', $paragraph)->item(0);
+                    if (!$pr) { $pr = $doc->createElementNS(self::NS, 'w:pPr'); $paragraph->insertBefore($pr, $paragraph->firstChild); }
+                    if (!$xp->query('./w:rPr', $pr)->length) $pr->insertBefore($doc->createElementNS(self::NS, 'w:rPr'), $xp->query('./w:sectPr | ./w:pPrChange', $pr)->item(0));
+                }
+                if ($name === 'word/styles.xml') {
+                    $defaults = $xp->query('/w:styles/w:docDefaults')->item(0);
+                    if (!$defaults) { $defaults = $doc->createElementNS(self::NS, 'w:docDefaults'); $doc->documentElement->insertBefore($defaults, $doc->documentElement->firstChild); }
+                    $runDefault = $xp->query('./w:rPrDefault', $defaults)->item(0);
+                    if (!$runDefault) { $runDefault = $doc->createElementNS(self::NS, 'w:rPrDefault'); $defaults->insertBefore($runDefault, $defaults->firstChild); }
+                    if (!$xp->query('./w:rPr', $runDefault)->length) $runDefault->appendChild($doc->createElementNS(self::NS, 'w:rPr'));
+                }
+                foreach (iterator_to_array($xp->query('//w:rPr')) as $pr) {
+                    foreach (iterator_to_array($xp->query('./w:lang | ./w:noProof', $pr)) as $old) $pr->removeChild($old);
+                    $lang = $doc->createElementNS(self::NS, 'w:lang');
+                    foreach (['val', 'eastAsia', 'bidi'] as $attr) $lang->setAttributeNS(self::NS, 'w:'.$attr, $locale);
+                    $pr->insertBefore($lang, $xp->query('./w:eastAsianLayout | ./w:specVanish | ./w:oMath | ./w:rPrChange', $pr)->item(0));
+                }
+                // Remove obsolete proofing marks without creating formatting review revisions.
+                foreach (iterator_to_array($xp->query('//w:proofErr')) as $mark) $mark->parentNode->removeChild($mark);
+                $zip->addFromString($name, $doc->saveXML());
+            }
+        } catch (\Throwable $e) { $zip->close(); @unlink($path); throw $e; }
+        $zip->close();
         return $path;
     }
+
     /** Keep the original package, table containers, sections, headers, footers and style parts. */
     private function exportIntoSource(string $sourcePath, string $body): string
     {

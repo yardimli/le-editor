@@ -74,6 +74,26 @@ class DocxFormattingTest extends TestCase
         } finally { unlink($path); if ($output) unlink($output); }
     }
 
+    public function test_export_sets_proofing_language_without_creating_format_revisions(): void
+    {
+        $source = $this->source();
+        try {
+            $import = app(Docx::class)->import($source);
+            foreach (['tr' => 'tr-TR', 'en' => 'en-US'] as $language => $locale) {
+                $path = app(Docx::class)->export($import['text'], $import['text'], 'Test', $import['italics'], $source, $language);
+                $zip = new ZipArchive; $zip->open($path);
+                foreach (['word/document.xml', 'word/styles.xml', 'word/header1.xml'] as $part) {
+                    $doc = new \DOMDocument; $doc->loadXML($zip->getFromName($part));
+                    $xp = new \DOMXPath($doc); $xp->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+                    $this->assertGreaterThan(0, $xp->query('//w:lang')->length);
+                    $this->assertSame(0, $xp->query('//w:lang[@w:val!="'.$locale.'"]')->length);
+                    $this->assertSame(0, $xp->query('//w:rPrChange')->length);
+                }
+                $zip->close(); unlink($path);
+            }
+        } finally { unlink($source); }
+    }
+
     public function test_import_resolves_headings_character_styles_and_direct_formatting(): void
     {
         $path = $this->source();
