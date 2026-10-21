@@ -252,7 +252,7 @@ class BookController extends Controller
     public function run(Request $request, Book $book, OpenRouter $api, TextEditor $editor)
     {
         $this->owner($book);
-        $data = $request->validate(['reasoning_effort' => 'sometimes|in:low,medium,high', 'model' => 'required|string|max:255', 'chunk_size' => 'required|integer|min:100|max:10000', 'version' => 'required|integer']);
+        $data = $request->validate(['scope' => 'sometimes|in:unfinished,all', 'reasoning_effort' => 'sometimes|in:low,medium,high', 'model' => 'required|string|max:255', 'chunk_size' => 'required|integer|min:100|max:10000', 'version' => 'required|integer']);
         try { $api->key($request->user()); $api->model($data['model']); }
         catch (\Throwable $e) { throw ValidationException::withMessages(['model' => __('editor.model_unavailable')]); }
         DB::transaction(function () use ($book, $data, $editor) {
@@ -260,6 +260,22 @@ class BookController extends Controller
             $this->idle($locked);
             abort_unless($locked->version === $data['version'], 409, __('editor.save_conflict'));
             abort_unless(trim($locked->prompt ?? '') !== '', 422, __('editor.prompt_required'));
+            $existing = $locked->activeRun()->lockForUpdate()->first();
+            if (($data['scope'] ?? 'all') === 'unfinished' && $existing) {
+                // Keep chunk identities, reviews and manual edits. Only future API calls use the new settings.
+                $pending = $existing->chunks()->where('status', '!=', 'completed')->count();
+                abort_unless($pending > 0, 422, __('editor.no_unfinished_chunks'));
+                $existing->chunks()->where('status', '!=', 'completed')->update(['status' => 'pending']);
+                $existing->update([
+                    'prompt' => $locked->prompt, 'context' => $locked->context,
+                    'language' => $locked->language, 'italicize' => $locked->italicize,
+                    'model' => $data['model'], 'reasoning_effort' => $data['reasoning_effort'] ?? 'low',
+                    'completed_chunks' => $existing->chunks()->where('status', 'completed')->count(),
+                    'status' => 'queued', 'error' => null,
+                ]);
+                $locked->update(['model' => $data['model'], 'version' => $locked->version + 1]);
+                return;
+            }
             $text = $editor->rendered($locked);
             $italics = app(\App\Services\Italics::class)->book($locked);
             abort_unless(trim($text) !== '', 422, __('editor.empty_manuscript'));

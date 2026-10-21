@@ -122,4 +122,9 @@ return [
     'thinking_hint' => 'Scales with chunk length. Effort-only models use an approximate allowance.',
     'select_model' => 'Select a model to use',
     'book_details' => 'Book settings',
+    'run_scope_title' => 'Continue or redo?',
+    'run_scope_hint' => 'Continue preserves completed chunks and their reviews, using the new settings for unfinished chunks. Existing chunk boundaries are kept. Redo all applies approved edits and discards remaining suggestions before editing every chunk again.',
+    'continue_unfinished' => 'Continue unfinished chunks',
+    'redo_all' => 'Redo all chunks',
+    'no_unfinished_chunks' => 'All chunks are complete. Choose redo all to start another pass.',
 ];

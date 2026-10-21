@@ -46,7 +46,7 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
         const effortShare = {low: .2, medium: .5, high: .8}[level];
         const thinkingTokens = model.reasoning ? Math.max(chunks * 1024, tokens * (model.reasoning.supports_max_tokens ? ratio : Math.max(ratio, effortShare / (1 - effortShare)))) : 0;
         const promptTokens = Math.ceil(($('#book-prompt').value.length + $('#book-context').value.length + 1000) / 3);
-        $('#cost-estimate').textContent = `${t('estimate')}: ~$${(((tokens + chunks * promptTokens) * model.input_price + (tokens + thinkingTokens + chunks * 2048) * model.output_price) / 1e6).toFixed(3)}`;
+        $('#cost-estimate').textContent = `${t('estimate')}: ~$${(((tokens + chunks * promptTokens) * model.input_price + (tokens + thinkingTokens + chunks * 10000) * model.output_price) / 1e6).toFixed(3)}`;
     }
     function showChunk(chunk, force = false) {
         if (!chunk || dirty || saving) return;
@@ -262,18 +262,37 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
     $('#run-model').addEventListener('change', () => { $('#thinking-control').hidden = !getModels().find(m => m.id === $('#run-model').value)?.reasoning; estimate(); });
     $('#thinking-level').addEventListener('change', estimate);
     $('#chunk-size').addEventListener('input', estimate);
+    function chooseRunScope() {
+        if (!state?.run?.completed_chunks) return Promise.resolve('unfinished');
+        const dialog = $('#run-scope-dialog');
+        const unfinished = $('[data-run-scope="unfinished"]', dialog);
+        unfinished.disabled = state.run.completed_chunks >= state.run.total_chunks;
+        return new Promise(resolve => {
+            const finish = scope => {
+                dialog.close(); dialog.removeEventListener('click', click); dialog.removeEventListener('cancel', cancel);
+                resolve(scope);
+            };
+            const click = event => { const button = event.target.closest('[data-run-scope]'); if (button && !button.disabled) finish(button.dataset.runScope); };
+            const cancel = event => { event.preventDefault(); finish('cancel'); };
+            dialog.addEventListener('click', click); dialog.addEventListener('cancel', cancel);
+            dialog.showModal();
+            (unfinished.disabled ? $('[data-run-scope="all"]', dialog) : unfinished).focus();
+        });
+    }
     $('#run-form').addEventListener('submit', async event => {
         event.preventDefault(); if (busy || !settings.reportValidity()) return;
         busy = true; $('#run-button').disabled = true; $('#cancel-setup').disabled = true;
         $('.setup-grid', setup).inert = true; $('#setup-error').classList.add('hidden');
         try {
+            const scope = await chooseRunScope();
+            if (scope === 'cancel') return;
             await save();
             const data = Object.fromEntries(new FormData(settings));
             data.italicize = $$('.preset-checkbox:checked').some(box => box.dataset.presetKey === 'italics');
             data.learn = true; data.prompt_version = book.promptVersion;
             const saved = await request(base, 'PATCH', data);
             book.promptVersion = saved.prompt_version; settingsDirty = false;
-            await request(`${base}/run`, 'POST', { model: $('#run-model').value,
+            await request(`${base}/run`, 'POST', { scope, model: $('#run-model').value,
                 reasoning_effort: $('#thinking-level').value, chunk_size: Number($('#chunk-size').value), version: book.version });
             setup.close(); signature = ''; await refresh(true);
         } catch (error) {

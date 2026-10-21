@@ -166,6 +166,8 @@ Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript t
 - [x] Remove redundant review heading; render compact review paragraphs and merge identical adjacent spans.
 - [x] Coalesce identical imported runs and preserve namespace declarations during DOCX export.
 
-- [x] Model-aware Low/Medium/High thinking, dynamic chunk budgets and 2,048-token margin.
+- [x] Model-aware Low/Medium/High thinking, dynamic chunk budgets and 10,000-token margin.
 - [x] Use filtered env model as dropdown default, otherwise require selection.
 - [x] Move book settings to library dialog, compact editorial setup, and enable learning hint after 50 reviews.
+
+- [x] Offer continue unfinished versus redo all from setup; preserve completed chunks and apply new settings to remaining work.

@@ -93,6 +93,15 @@
             <div class="flex gap-3"><button type="button" class="button-secondary" id="cancel-setup">{{ __('editor.setup_cancel') }}</button><button type="submit" form="run-form" class="button" id="run-button">{{ __('editor.run') }} →</button></div>
         </div>
     </dialog>
+    <dialog id="run-scope-dialog" class="editor-dialog" aria-labelledby="run-scope-title">
+        <h2 id="run-scope-title">{{ __('editor.run_scope_title') }}</h2>
+        <p class="muted my-4">{{ __('editor.run_scope_hint') }}</p>
+        <div class="flex flex-wrap gap-2">
+            <button type="button" class="button" data-run-scope="unfinished">{{ __('editor.continue_unfinished') }}</button>
+            <button type="button" class="button-secondary" data-run-scope="all">{{ __('editor.redo_all') }}</button>
+            <button type="button" class="button-secondary" data-run-scope="cancel">{{ __('editor.setup_cancel') }}</button>
+        </div>
+    </dialog>
     <dialog id="export-dialog" aria-labelledby="export-title" class="editor-dialog">
         <h2 id="export-title">{{ __('editor.export_title') }}</h2><p class="muted my-5">{{ __('editor.export_hint') }}</p>
         <form action="{{ route('books.export', $book) }}" method="GET" id="export-form"><label class="check-label"><input type="checkbox" name="include_pending" value="1"> {{ __('editor.include_pending') }}</label><div class="flex gap-3 mt-7"><button class="button">{{ __('editor.download') }}</button><button type="button" id="close-export" class="button-secondary">{{ __('editor.close') }}</button></div></form>

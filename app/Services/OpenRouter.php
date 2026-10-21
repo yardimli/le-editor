@@ -85,7 +85,7 @@ class OpenRouter
                 $thinking = max($thinking, (int) ceil($visible * $share / (1 - $share)));
             }
         }
-        $total = $visible + $thinking + 2048;
+        $total = $visible + $thinking + 10000;
         $estimatedInput = (int) ceil(mb_strlen($system.$input) / 2);
         if ((!empty($model['context_length']) && $estimatedInput + $total > $model['context_length'])
             || (!empty($model['max_output']) && $total > $model['max_output'])) {

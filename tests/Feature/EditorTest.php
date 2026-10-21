@@ -158,6 +158,38 @@ class EditorTest extends TestCase
         ]])]);
     }
 
+    public function test_continue_setup_preserves_completed_chunks_and_updates_unfinished_run(): void
+    {
+        $this->catalog();
+        $book = $this->book(); $run = $this->runWithChanges($book);
+        $run->update(['status' => 'cancelled', 'completed_chunks' => 1, 'total_chunks' => 2]);
+        $completed = $run->chunks()->first(); $before = $completed->fresh()->getAttributes();
+        $pending = $run->chunks()->create(['position' => 1, 'source' => 'Next chunk.', 'input_text' => 'Next chunk.']);
+        $book->update(['prompt' => 'New instructions']);
+        $this->actingAs($book->user)->postJson("/books/{$book->id}/run", [
+            'scope' => 'unfinished', 'model' => 'test/paid', 'reasoning_effort' => 'high',
+            'chunk_size' => 1000, 'version' => $book->fresh()->version,
+        ])->assertOk();
+        $this->assertSame($run->id, $book->fresh()->active_run_id);
+        $this->assertSame($before, $completed->fresh()->getAttributes());
+        $this->assertSame('New instructions', $run->fresh()->prompt);
+        $this->assertSame('high', $run->fresh()->reasoning_effort);
+        $this->assertSame(1, $run->fresh()->completed_chunks);
+        $this->assertSame($pending->id, $run->chunks()->where('status', 'pending')->first()->id);
+        $this->assertSame(1, $book->runs()->count());
+    }
+
+    public function test_continue_rejects_fully_completed_run_without_creating_another_pass(): void
+    {
+        $this->catalog(); $book = $this->book(); $run = $this->runWithChanges($book);
+        $this->actingAs($book->user)->postJson("/books/{$book->id}/run", [
+            'scope' => 'unfinished', 'model' => 'test/paid', 'chunk_size' => 1000,
+            'version' => $book->fresh()->version,
+        ])->assertStatus(422);
+        $this->assertSame(1, $book->runs()->count());
+        $this->assertSame($run->id, $book->fresh()->active_run_id);
+    }
+
     public function test_browser_requests_process_one_chunk_at_a_time_and_resume_after_return(): void
     {
         $this->catalog(); app(OpenRouter::class)->models();
