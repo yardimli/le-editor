@@ -134,4 +134,10 @@ return [
     'queue_other_book' => 'Another book is being edited',
     'queue_other_task' => 'Processing another book',
     'queue_this_book_waiting' => 'This book is waiting',
+    'model_warning_title' => 'Use the recommended model?',
+    'model_warning_copy' => 'The selected model may be more expensive and slower. We recommend the default model. Start editing uses the default unless you check the box below.',
+    'model_selected' => 'Selected model',
+    'model_recommended' => 'Default model',
+    'keep_selected_model' => 'No, I want to use the selected model',
+    'start_editing' => 'Start editing',
 ];

@@ -134,4 +134,10 @@ return [
     'queue_other_book' => 'Başka bir eser düzenleniyor',
     'queue_other_task' => 'Başka bir eser işleniyor',
     'queue_this_book_waiting' => 'Bu eser bekliyor',
+    'model_warning_title' => 'Önerilen model kullanılsın mı?',
+    'model_warning_copy' => 'Seçtiğiniz model daha pahalı ve daha yavaş olabilir. Varsayılan modeli öneriyoruz. Aşağıdaki kutuyu işaretlemezseniz düzenleme varsayılan modelle başlar.',
+    'model_selected' => 'Seçilen model',
+    'model_recommended' => 'Varsayılan model',
+    'keep_selected_model' => 'Hayır, seçtiğim modeli kullanmak istiyorum',
+    'start_editing' => 'Düzenlemeyi başlat',
 ];

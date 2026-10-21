@@ -266,6 +266,34 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
     $('#run-model').addEventListener('change', () => { $('#thinking-control').hidden = !getModels().find(m => m.id === $('#run-model').value)?.reasoning; estimate(); });
     $('#thinking-level').addEventListener('change', estimate);
     $('#chunk-size').addEventListener('input', estimate);
+    function confirmModelChoice() {
+        const select = $('#run-model');
+        const recommended = getModels().find(model => model.id === select.dataset.defaultModel);
+        if (!recommended || select.value === recommended.id) return Promise.resolve(true);
+        const selected = getModels().find(model => model.id === select.value);
+        const dialog = $('#model-warning-dialog'), keep = $('#keep-selected-model');
+        keep.checked = false;
+        $('#warning-selected-model').textContent = selected?.name || select.value;
+        $('#warning-default-model').textContent = recommended.name;
+        return new Promise(resolve => {
+            const start = $('#confirm-model-start'), cancel = $('#cancel-model-warning');
+            const finish = confirmed => {
+                if (confirmed && !keep.checked) {
+                    select.value = recommended.id;
+                    select.dispatchEvent(new Event('change'));
+                }
+                dialog.close();
+                start.removeEventListener('click', accept); cancel.removeEventListener('click', decline);
+                dialog.removeEventListener('cancel', escape);
+                resolve(confirmed);
+            };
+            const accept = () => finish(true), decline = () => finish(false);
+            const escape = event => { event.preventDefault(); finish(false); };
+            start.addEventListener('click', accept); cancel.addEventListener('click', decline);
+            dialog.addEventListener('cancel', escape);
+            dialog.showModal(); start.focus();
+        });
+    }
     function chooseRunScope() {
         if (!state?.run?.completed_chunks) return Promise.resolve('unfinished');
         const dialog = $('#run-scope-dialog');
@@ -290,6 +318,7 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
         try {
             const scope = await chooseRunScope();
             if (scope === 'cancel') return;
+            if (!await confirmModelChoice()) return;
             await save();
             const data = Object.fromEntries(new FormData(settings));
             data.italicize = $$('.preset-checkbox:checked').some(box => box.dataset.presetKey === 'italics');

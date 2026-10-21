@@ -64,6 +64,7 @@ async function loadModels() {
         const catalog = await request('/models');
         models = catalog.models;
         $$('[data-model-select]').forEach(select => {
+            select.dataset.defaultModel = catalog.default_model || '';
             select.replaceChildren(new Option(t('select_model'), ''));
             models.forEach(model => select.add(new Option(`${model.name} · $${model.output_price.toFixed(2)} / 1M`, model.id)));
             select.value = [select.dataset.current, catalog.default_model].find(id => id && models.some(model => model.id === id)) || ''; 

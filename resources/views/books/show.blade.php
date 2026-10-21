@@ -93,6 +93,17 @@
             <div class="flex gap-3"><button type="button" class="button-secondary" id="cancel-setup">{{ __('editor.setup_cancel') }}</button><button type="submit" form="run-form" class="button" id="run-button">{{ __('editor.run') }} →</button></div>
         </div>
     </dialog>
+    <dialog id="model-warning-dialog" class="editor-dialog" aria-labelledby="model-warning-title" aria-describedby="model-warning-copy">
+        <h2 id="model-warning-title">{{ __('editor.model_warning_title') }}</h2>
+        <p id="model-warning-copy" class="muted my-4">{{ __('editor.model_warning_copy') }}</p>
+        <p class="text-sm mb-2">{{ __('editor.model_selected') }}: <strong id="warning-selected-model"></strong></p>
+        <p class="text-sm mb-4">{{ __('editor.model_recommended') }}: <strong id="warning-default-model"></strong></p>
+        <label class="check-label"><input type="checkbox" id="keep-selected-model"> {{ __('editor.keep_selected_model') }}</label>
+        <div class="flex gap-2 mt-5">
+            <button type="button" class="button" id="confirm-model-start">{{ __('editor.start_editing') }}</button>
+            <button type="button" class="button-secondary" id="cancel-model-warning">{{ __('editor.setup_cancel') }}</button>
+        </div>
+    </dialog>
     <dialog id="run-scope-dialog" class="editor-dialog" aria-labelledby="run-scope-title">
         <h2 id="run-scope-title">{{ __('editor.run_scope_title') }}</h2>
         <p class="muted my-4">{{ __('editor.run_scope_hint') }}</p>
