@@ -173,3 +173,5 @@ Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript t
 - [x] Offer continue unfinished versus redo all from setup; preserve completed chunks and apply new settings to remaining work.
 
 - [x] Restore saved model and run thinking level when reopening editorial setup, falling back to the filtered env model only when necessary.
+
+- [x] Reject and hide AI paragraph-end spacing-only suggestions, including existing saved diffs, while preserving meaningful whitespace changes.

@@ -76,6 +76,7 @@ class EditChunk implements ShouldQueue
             $styledChunk = clone $chunk; $styledChunk->segments = $segments;
             $segments = app(\App\Services\SourceFormatting::class)->chunk($run->book, $styledChunk);
             $segments = $formatting->apply($segments, $italicRanges, 'pending', 'ai');
+            $segments = app(\App\Services\ParagraphSpacing::class)->reject($segments);
             app(BrowserQueue::class)->commit($run->book->user_id, $this->token, function () use ($chunk, $output, $segments, $result) {
                 $locked = EditingRun::lockForUpdate()->find($this->runId);
                 if (!$locked || !$locked->isActive()) { return; }
