@@ -16,8 +16,18 @@ class ModelCatalogFilterTest extends TestCase {
             ['qwen/qwen3.8-27b', 'Qwen 27B'], ['qwen/qwen3.5-397b-a17b', 'Qwen 397B'],
         ];
         $result = (new ModelCatalogFilter)->apply(collect($models)->map(fn ($m) => ['id'=>$m[0], 'name'=>$m[1]]))->pluck('id')->all();
-        $this->assertSame(['moonshotai/kimi-k2-0905','moonshotai/kimi-k2-thinking','anthropic/claude-sonnet-5','anthropic/claude-sonnet-5.5','openai/gpt-6-sol','openai/gpt-6.1-sol','openai/gpt-6-luna','qwen/qwen3.5-27b','qwen/qwen3.8-27b','qwen/qwen3.5-397b-a17b'], $result);
+        $this->assertSame(['moonshotai/kimi-k2-0905','moonshotai/kimi-k2-thinking','anthropic/claude-sonnet-5','anthropic/claude-sonnet-5.5','openai/gpt-6-sol','openai/gpt-6.1-sol','openai/gpt-6-luna','qwen/qwen3.5-397b-a17b'], $result);
     }
+    public function test_qwen_filters_use_total_size_and_leave_other_providers_alone(): void {
+        $names = ['Qwen 99.5B', 'Qwen 100B', 'Qwen 235B A22B', 'Qwen 2.4T A95B',
+            'Qwen 235B THINKING', 'Qwen 235B Instruct', 'Qwen Plus'];
+        $models = collect($names)->map(fn ($name, $i) => ['id'=>'qwen/test-'.$i, 'name'=>$name]);
+        $models->push(['id'=>'qwen/qwen3-30b-a3b', 'name'=>'Qwen small']);
+        $models->push(['id'=>'other/model', 'name'=>'Other 27B Thinking Instruct']);
+        $result = (new ModelCatalogFilter)->apply($models)->pluck('name')->all();
+        $this->assertSame(['Qwen 100B','Qwen 235B A22B','Qwen 2.4T A95B','Qwen Plus','Other 27B Thinking Instruct'], $result);
+    }
+
     public function test_semantic_versions_are_not_collapsed(): void {
         $models = collect([
             ['id'=>'moonshotai/kimi-k2.6', 'name'=>'Kimi K2.6'],

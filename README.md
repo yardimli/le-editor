@@ -436,3 +436,5 @@ Word exports set proofing language from the book’s manuscript language (`tr-TR
 The model catalog also excludes names containing “audio” or “preview” (case-insensitive). A Pro variant is hidden when the same provider has an otherwise identical non-Pro name in the eligible catalog; standalone Pro models remain available.
 
 The editorial model picker excludes Lite/Code/Coder/Codex names and IDs. It preserves distinct model versions (for example 5.5 and 6), tiers, sizes and thinking variants, keeping only the newest dated snapshot of the same version and variant. Legacy exclusions cover GPT-3/4, o1, Gemma 2, Qwen 2 and DeepSeek V3. Filtering and version selection occur after price/provider eligibility, so an ineligible newer model does not hide an eligible older one.
+
+Qwen-only filtering excludes Thinking/Instruct variants and models with a stated total size below 100B. Active counts such as A22B do not count as total size; models with no stated size remain eligible.
