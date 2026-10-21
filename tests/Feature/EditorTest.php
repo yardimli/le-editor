@@ -617,7 +617,7 @@ class EditorTest extends TestCase
             $this->assertStringContainsString('<w:del ', $xml);
             $this->assertStringContainsString('<w:delText ', $xml);
             $this->assertStringContainsString('New', $xml);
-            $this->assertSame($pending, str_contains($xml, 'Better'));
+            $this->assertStringContainsString('Better', $xml);
             $this->assertStringNotContainsString('section.', $xml);
             $zip->close(); unlink($path);
         }

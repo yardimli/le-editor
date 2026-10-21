@@ -126,6 +126,27 @@ class Docx
         // Paragraph-sequence diff preserves real paragraphs; changed paragraphs contain word revisions.
         $old = explode("\n\n", $original);
         $new = explode("\n\n", $current);
+        if ($source && !empty($format['paragraphs'])) {
+            // Double soft line breaks inside a w:p are not paragraph boundaries.
+            $old = []; $softBreaks = [];
+            foreach ($format['paragraphs'] as $paragraph) {
+                $text = mb_substr($original, $paragraph['start'], $paragraph['end'] - $paragraph['start']);
+                $old[] = $text;
+                $search = 0;
+                while (($at = mb_strpos($text, "\n\n", $search)) !== false) {
+                    $softBreaks[] = ['start' => $paragraph['start'] + $at, 'end' => $paragraph['start'] + $at + 2];
+                    $search = $at + 1;
+                }
+            }
+            $protected = $styles->project($original, $current, $softBreaks);
+            $new = []; $start = 0; $search = 0;
+            while (($at = mb_strpos($current, "\n\n", $search)) !== false) {
+                $soft = collect($protected)->contains(fn ($span) => $span['start'] <= $at && $span['end'] >= $at + 2);
+                if (!$soft) { $new[] = mb_substr($current, $start, $at - $start); $start = $at + 2; }
+                $search = $at + 2;
+            }
+            $new[] = mb_substr($current, $start);
+        }
         $oldOffsets = []; $offset = 0;
         foreach ($old as $paragraphText) { $oldOffsets[] = $offset; $offset += mb_strlen($paragraphText) + 2; }
         $newOffsets = []; $offset = 0;

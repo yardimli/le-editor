@@ -425,8 +425,7 @@ class BookController extends Controller
     public function export(Request $request, Book $book, TextEditor $editor, Docx $docx)
     {
         $this->owner($book);
-        $request->validate(['include_pending' => 'nullable|boolean']);
-        $path = $docx->export($book->original_text, $editor->rendered($book, $request->boolean('include_pending')), $book->title, app(\App\Services\Italics::class)->book($book, $request->boolean('include_pending')), Storage::exists($book->original_path) ? Storage::path($book->original_path) : null);
+        $path = $docx->export($book->original_text, $editor->rendered($book, true), $book->title, app(\App\Services\Italics::class)->book($book, true), Storage::exists($book->original_path) ? Storage::path($book->original_path) : null);
         return response()->download($path, app(\App\Services\ExportFilename::class)->next($book),
             ['Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])->deleteFileAfterSend();
     }

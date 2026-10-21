@@ -55,6 +55,25 @@ class DocxFormattingTest extends TestCase
         } finally { unlink($path); if ($output) unlink($output); }
     }
 
+    public function test_export_keeps_double_soft_breaks_inside_original_paragraph(): void
+    {
+        $path = $this->source(); $output = null;
+        try {
+            $zip = new ZipArchive; $zip->open($path);
+            $xml = $zip->getFromName('word/document.xml');
+            $xml = str_replace('<w:t>Chapter One</w:t>', '<w:t>Chapter</w:t><w:br/><w:br/><w:t>One</w:t>', $xml);
+            $zip->addFromString('word/document.xml', $xml); $zip->close();
+            $import = app(Docx::class)->import($path);
+            $current = str_replace('Bold', 'Strong', $import['text']);
+            $output = app(Docx::class)->export($import['text'], $current, 'Test', [[24,30]], $path);
+            $this->assertSame($current, app(Docx::class)->import($output)['text']);
+            $zip->open($output); $doc = new \DOMDocument; $doc->loadXML($zip->getFromName('word/document.xml')); $zip->close();
+            $xp = new \DOMXPath($doc); $xp->registerNamespace('w', 'http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+            $this->assertSame(2, $xp->query('//w:body//w:p')->length);
+            $this->assertSame(2, $xp->query('(//w:body//w:p)[1]//w:br')->length);
+        } finally { unlink($path); if ($output) unlink($output); }
+    }
+
     public function test_import_resolves_headings_character_styles_and_direct_formatting(): void
     {
         $path = $this->source();

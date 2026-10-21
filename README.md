@@ -19,7 +19,7 @@ A Turkish-first, bilingual AI book editor built with Laravel 10, Breeze, Blade, 
 - Quill text and italic editing with an Edit/Review switch, with 10-second debounced autosave, Save now and per-chunk optimistic concurrency checks. Review completed chunks while later chunks run.
 - Immutable original chunk text, author revision snapshots and an AI-edit counter per chunk.
 - Manuscript snapshots, prompt restoration and read-only historical reviews.
-- DOCX exports with genuine `w:ins` / `w:del` revisions. Approved AI changes and manual edits are included by default. Pending suggestions can be included for export only; rejected suggestions are excluded.
+- DOCX exports with genuine `w:ins` / `w:del` revisions. Approved AI changes, manual edits and pending suggestions are always included for export; rejected suggestions are excluded. Export does not approve pending suggestions in the app.
 - Cost estimates, reported run usage, private file storage, ownership checks and deletion controls.
 
 See [todo.md](todo.md) for implementation and verification status.
@@ -206,7 +206,7 @@ Use Nginx/PHP-FPM for a deployed site; `php artisan serve` is only for developme
 5. Wait for the inferred title and language, and adjust them if needed.
 6. The editorial setup dialog opens automatically for a book with no editing runs. Select presets to see the prompt update immediately, then customize it if needed.
 7. Choose a model and chunk size, then start an editing pass. Starting saves the settings automatically. Reopen the dialog from the sticky status band for subsequent passes; Escape or Cancel closes it without saving.
-8. Review and accept/reject suggestions. Download DOCX to export tracked changes; optionally include pending suggestions in that export.
+8. Review and accept/reject suggestions. Download DOCX to export tracked changes; pending suggestions are always included without approving them in the app.
 
 ### Optional: frontend development and email
 
@@ -428,3 +428,5 @@ When the account queue is processing another book, the editor footer names that 
 Before starting with a different model, setup recommends the configured default when it exists in the filtered catalog. The warning starts with an unchecked override: Start editing uses the default unless the user explicitly keeps the selected model. Cancel/Escape returns to setup without saving or starting the run.
 
 Resuming a book or starting an editorial pass leaves other cancelled books paused. The account lock still permits only one request at a time; pause remains account-wide.
+
+Export uses original Word paragraph boundaries and distinguishes double soft line breaks inside a paragraph, preventing missing paragraph-anchor errors.

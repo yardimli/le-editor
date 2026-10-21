@@ -29,7 +29,7 @@ return [
     'cancel_edit' => 'Durdur ve tamamlananları koru', 'cancelled' => 'Durduruldu', 'completed' => 'Tamamlandı', 'queued' => 'Sırada',
     'running' => 'Düzenleniyor', 'failed' => 'Başarısız', 'retry' => 'Kalan parçalara devam et', 'chunk' => 'Parça',
     'export' => 'DOCX indir', 'export_title' => 'Word değişiklik izlemeyle dışa aktar',
-    'export_hint' => 'Elle yaptığınız ve kabul ettiğiniz yapay zekâ değişiklikleri, ilk yüklemeye göre izlenen değişiklikler olarak eklenir. Reddedilenler eklenmez. Dışa aktarmak uygulamadaki kararları değiştirmez.',
+    'export_hint' => 'Elle yaptığınız değişiklikler, kabul ettiğiniz yapay zekâ düzenlemeleri ve bekleyen öneriler, ilk yüklemeye göre izlenen değişiklikler olarak eklenir. Reddedilenler eklenmez. Dışa aktarmak uygulamadaki kararları değiştirmez.',
     'include_pending' => 'Onaylanmamış (bekleyen) önerileri de ekle', 'download' => 'İndir', 'close' => 'Kapat',
     'api_key' => 'OpenRouter API anahtarı', 'key_hint' => 'Şifrelenerek saklanır. Kayıtlı anahtarı korumak için boş bırakın.',
     'key_saved' => 'Kayıtlı bir anahtar var', 'remove_key' => 'Kayıtlı anahtarı kaldır', 'test_key' => 'Kayıtlı bağlantıyı test et',

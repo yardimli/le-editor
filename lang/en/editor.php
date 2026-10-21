@@ -29,7 +29,7 @@ return [
     'cancel_edit' => 'Stop editing & keep completed work', 'cancelled' => 'Stopped', 'completed' => 'Completed', 'queued' => 'Queued',
     'running' => 'Editing', 'failed' => 'Failed', 'retry' => 'Resume remaining chunks', 'chunk' => 'Chunk',
     'export' => 'Download DOCX', 'export_title' => 'Export with Word tracked changes',
-    'export_hint' => 'Includes your manual changes and approved AI edits as revisions relative to the original upload. Rejected edits are excluded. Exporting does not change decisions in the app.',
+    'export_hint' => 'Includes your manual changes, approved AI edits and pending suggestions as revisions relative to the original upload. Rejected edits are excluded. Exporting does not change decisions in the app.',
     'include_pending' => 'Also include unapproved (pending) suggestions', 'download' => 'Download', 'close' => 'Close',
     'api_key' => 'OpenRouter API key', 'key_hint' => 'Stored encrypted. Leave blank to keep your saved key.',
     'key_saved' => 'A key is saved', 'remove_key' => 'Remove saved key', 'test_key' => 'Test saved connection',

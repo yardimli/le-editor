@@ -115,7 +115,7 @@
     </dialog>
     <dialog id="export-dialog" aria-labelledby="export-title" class="editor-dialog">
         <h2 id="export-title">{{ __('editor.export_title') }}</h2><p class="muted my-5">{{ __('editor.export_hint') }}</p>
-        <form action="{{ route('books.export', $book) }}" method="GET" id="export-form"><label class="check-label"><input type="checkbox" name="include_pending" value="1"> {{ __('editor.include_pending') }}</label><div class="flex gap-3 mt-7"><button class="button">{{ __('editor.download') }}</button><button type="button" id="close-export" class="button-secondary">{{ __('editor.close') }}</button></div></form>
+        <form action="{{ route('books.export', $book) }}" method="GET" id="export-form"><div class="flex gap-3 mt-7"><button class="button">{{ __('editor.download') }}</button><button type="button" id="close-export" class="button-secondary">{{ __('editor.close') }}</button></div></form>
     </dialog>
 </div>
 @endsection
