@@ -197,4 +197,4 @@ Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript t
 
 - [x] Exclude audio/preview names and duplicate Pro variants while retaining standalone Pro models; refresh catalog cache version.
 
-- [x] Exclude Lite/coding and legacy generations; deduplicate model release dates and recognized family versions without merging different tiers or sizes.
+- [x] Exclude Lite/coding and legacy generations; deduplicate release dates only, preserving distinct semantic versions, tiers and sizes.

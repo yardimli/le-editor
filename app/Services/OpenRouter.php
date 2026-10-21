@@ -24,7 +24,7 @@ class OpenRouter
     {
         $cacheKey = 'openrouter.models.'.hash('sha256', implode('|', [
             config('editor.min_output_price'), config('editor.max_output_price'),
-            config('editor.api_key'), implode(',', config('editor.providers')), 'provider-catalog-v5',
+            config('editor.api_key'), implode(',', config('editor.providers')), 'provider-catalog-v6',
         ]));
         return Cache::remember($cacheKey, 3600, function () {
             if (!config('editor.api_key')) {

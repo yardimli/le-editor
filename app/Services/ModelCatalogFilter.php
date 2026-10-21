@@ -42,23 +42,9 @@ class ModelCatalogFilter
         if (preg_match('/(?:\b(\d{4}-\d{2}-\d{2})\b|\b(\d{4})\)?$)/', $model['name'] ?? '', $match)) {
             $snapshot = str_replace('-', '', $match[1] ?: ($match[2] ?? ''));
         }
-        $version = '0';
-        // Compare generations only within known families; preserve tier/size/thinking suffixes.
-        $patterns = [
-            '~^(openai/gpt-)(\d+(?:\.\d+)*)(.*)$~',
-            '~^(anthropic/claude-(?:haiku|sonnet|opus)-)(\d+(?:\.\d+)*)(.*)$~',
-            '~^(moonshotai/kimi-k)(\d+(?:\.\d+)*)(.*)$~',
-            '~^(google/gemini-)(\d+(?:\.\d+)*)(.*)$~',
-            '~^(deepseek/deepseek-v)(\d+(?:\.\d+)*)(.*)$~',
-            '~^(qwen/qwen)(\d+(?:\.\d+)*)(.*)$~',
-        ];
-        foreach ($patterns as $pattern) {
-            if (preg_match($pattern, $id, $match)) {
-                $version = $match[2]; $id = $match[1].'{version}'.$match[3]; break;
-            }
-        }
+        // Keep the complete semantic version and variant in the grouping key.
         // Use a full release timestamp when supplied, including years for short date suffixes.
         if ($snapshot && !empty($model['created'])) $snapshot = gmdate('Ymd', (int) $model['created']);
-        return [$id, $version, $snapshot];
+        return [$id, '0', $snapshot];
     }
 }
