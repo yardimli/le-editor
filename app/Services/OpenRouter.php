@@ -24,7 +24,7 @@ class OpenRouter
     {
         $cacheKey = 'openrouter.models.'.hash('sha256', implode('|', [
             config('editor.min_output_price'), config('editor.max_output_price'),
-            config('editor.api_key'), implode(',', config('editor.providers')), 'provider-catalog-v4',
+            config('editor.api_key'), implode(',', config('editor.providers')), 'provider-catalog-v5',
         ]));
         return Cache::remember($cacheKey, 3600, function () {
             if (!config('editor.api_key')) {
@@ -50,6 +50,7 @@ class OpenRouter
                     && (float) $price * 1000000 >= config('editor.min_output_price')
                     && (float) $price * 1000000 <= config('editor.max_output_price');
             });
+            $eligible = app(ModelCatalogFilter::class)->apply($eligible);
             $normalizeName = fn ($name) => trim(preg_replace('/\s+/u', ' ', mb_strtolower($name)));
             $names = [];
             foreach ($eligible as $model) {

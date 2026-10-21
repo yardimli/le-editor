@@ -434,3 +434,5 @@ Export uses original Word paragraph boundaries and distinguishes double soft lin
 Word exports set proofing language from the book’s manuscript language (`tr-TR` or `en-US`), overriding inherited run languages and applying it to document styles and headers/footers. This does not add language-change review flags or change in-app review decisions. Word needs the corresponding proofing tools installed.
 
 The model catalog also excludes names containing “audio” or “preview” (case-insensitive). A Pro variant is hidden when the same provider has an otherwise identical non-Pro name in the eligible catalog; standalone Pro models remain available.
+
+The editorial model picker excludes Lite/Code/Coder/Codex names and IDs. It keeps the highest numbered version and newest dated release within recognized provider families, preserving distinct tiers, parameter sizes and thinking variants. Legacy exclusions cover GPT-3/4, o1, Gemma 2, Qwen 2 and DeepSeek V3. Filtering and version selection occur after price/provider eligibility, so an ineligible newer model does not hide an eligible older one.
