@@ -409,7 +409,7 @@ Review renders paragraph boundaries with compact spacing and coalesces identical
 
 ### Editorial setup and thinking
 
-Book title, manuscript language, context and chunk size are edited from **Book settings** on the library page. Editorial setup contains presets, prompt, model and model-aware Low/Medium/High thinking (default Low). The filtered `OPENROUTER_MODEL` is the dropdown default; when unavailable, users must select a model.
+Book title, manuscript language, context and chunk size are edited from **Book settings** on the library page. Editorial setup contains presets, prompt, model and model-aware Low/Medium/High thinking (default Low). Dropdowns prefer the saved book/user model when it remains in the filtered catalog, then `OPENROUTER_MODEL`, otherwise require selection. Reopening editorial setup also restores the current run’s thinking level.
 
 Thinking-capable models with numeric budgets receive 0.5×/1×/2× the estimated edited-text token allowance (minimum 1,024). Effort-only models receive a supported effort and additional estimated headroom. Total output includes edited-text allowance, thinking allowance and **10,000 extra tokens**. Model limits are checked before sending; oversized chunks require a smaller chunk size. Effort cannot guarantee a precise thinking cap. Requests log the actual reasoning parameters. Run migrations and rebuild assets when deploying.
 

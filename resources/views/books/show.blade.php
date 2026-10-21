@@ -80,7 +80,7 @@
                 <form id="run-form" class="space-y-4 mt-5">
                     <div><label for="run-model">{{ __('editor.model') }}</label><select id="run-model" name="model" required data-model-select data-current="{{ $book->model }}"><option value="">{{ __('editor.loading_models') }}</option></select><p class="hint model-error" role="alert"></p></div>
                     <input type="hidden" id="chunk-size" value="{{ $book->chunk_size }}">
-                    <div id="thinking-control" hidden><label for="thinking-level">{{ __('editor.thinking') }}</label><select id="thinking-level"><option value="low">{{ __('editor.thinking_low') }}</option><option value="medium">{{ __('editor.thinking_medium') }}</option><option value="high">{{ __('editor.thinking_high') }}</option></select><p class="hint">{{ __('editor.thinking_hint') }}</p></div>
+                    <div id="thinking-control" hidden><label for="thinking-level">{{ __('editor.thinking') }}</label><select id="thinking-level"><option value="low" @selected(($book->activeRun?->reasoning_effort ?? 'low') === 'low')>{{ __('editor.thinking_low') }}</option><option value="medium" @selected(($book->activeRun?->reasoning_effort ?? 'low') === 'medium')>{{ __('editor.thinking_medium') }}</option><option value="high" @selected(($book->activeRun?->reasoning_effort ?? 'low') === 'high')>{{ __('editor.thinking_high') }}</option></select><p class="hint">{{ __('editor.thinking_hint') }}</p></div>
                     <p class="hint">{{ __('editor.rerun_hint') }}</p>
                     <p class="text-sm" id="cost-estimate"></p><p class="hint">{{ __('editor.cost_hint') }}</p>
 

@@ -66,7 +66,7 @@ async function loadModels() {
         $$('[data-model-select]').forEach(select => {
             select.replaceChildren(new Option(t('select_model'), ''));
             models.forEach(model => select.add(new Option(`${model.name} · $${model.output_price.toFixed(2)} / 1M`, model.id)));
-            select.value = models.some(model => model.id === catalog.default_model) ? catalog.default_model : ''; 
+            select.value = [select.dataset.current, catalog.default_model].find(id => id && models.some(model => model.id === id)) || ''; 
             select.dispatchEvent(new Event('change'));
         });
         if (!models.length) $$('.model-error').forEach(el => { el.textContent = t('catalog_unavailable'); });

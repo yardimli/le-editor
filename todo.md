@@ -171,3 +171,5 @@ Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript t
 - [x] Move book settings to library dialog, compact editorial setup, and enable learning hint after 50 reviews.
 
 - [x] Offer continue unfinished versus redo all from setup; preserve completed chunks and apply new settings to remaining work.
+
+- [x] Restore saved model and run thinking level when reopening editorial setup, falling back to the filtered env model only when necessary.
