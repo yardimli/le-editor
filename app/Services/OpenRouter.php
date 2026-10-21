@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Models\Book;
+use App\Models\ApiLog;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -64,7 +66,7 @@ class OpenRouter
             ?? throw new RuntimeException('model_unavailable');
     }
 
-    public function complete(User $user, string $model, string $system, string $content, ?int $maxTokens = null): array
+    public function complete(User $user, string $model, string $system, string $content, ?int $maxTokens = null, ?Book $book = null, string $purpose = 'completion'): array
     {
         $payload = [
             'model' => $model,
@@ -77,25 +79,47 @@ class OpenRouter
         if ($maxTokens) {
             $payload['max_tokens'] = $maxTokens;
         }
-        $response = Http::withToken($this->key($user))->acceptJson()
-            ->withHeaders(['HTTP-Referer' => config('app.url'), 'X-Title' => 'LE Editor'])
-            ->connectTimeout(15)->timeout(180)
-            ->post(config('editor.base_url').'/chat/completions', $payload);
-        if (!$response->successful()) {
-            // Provider bodies may contain manuscript text or credentials. Never log them.
-            throw new RuntimeException(match ($response->status()) {
-                401, 403 => 'api_key_invalid', 402 => 'insufficient_credits',
-                429 => 'rate_limited', default => 'provider_error',
-            });
+        $key = $this->key($user);
+        // Store bodies only, never authentication headers. Redact echoed credentials too.
+        $redact = fn (string $value) => str_replace($key, '[REDACTED]', $value);
+        $log = ApiLog::create([
+            'user_id' => $user->id, 'book_id' => $book?->id, 'purpose' => $purpose,
+            'model' => $model, 'status' => 'running',
+            'request_body' => $redact(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)),
+        ]);
+        try {
+            $response = Http::withToken($key)->acceptJson()
+                ->withHeaders(['HTTP-Referer' => config('app.url'), 'X-Title' => 'LE Editor'])
+                ->connectTimeout(15)->timeout(180)
+                ->post(config('editor.base_url').'/chat/completions', $payload);
+            $log->update([
+                'response_body' => $redact($response->body()), 'http_status' => $response->status(),
+                'prompt_tokens' => $response->json('usage.prompt_tokens'),
+                'completion_tokens' => $response->json('usage.completion_tokens'),
+                'total_tokens' => $response->json('usage.total_tokens'),
+                'cost' => $response->json('usage.cost'),
+            ]);
+            if (!$response->successful()) {
+                throw new RuntimeException(match ($response->status()) {
+                    401, 403 => 'api_key_invalid', 402 => 'insufficient_credits',
+                    429 => 'rate_limited', default => 'provider_error',
+                });
+            }
+            $text = $response->json('choices.0.message.content');
+            if (!is_string($text) || trim($text) === '') {
+                throw new RuntimeException('empty_output');
+            }
+            if ($response->json('choices.0.finish_reason') !== 'stop') {
+                throw new RuntimeException('incomplete_output');
+            }
+            $log->update(['status' => 'completed']);
+            return ['text' => $text, 'tokens' => (int) $response->json('usage.total_tokens', 0),
+                'cost' => (float) $response->json('usage.cost', 0)];
+        } catch (\Throwable $e) {
+            $log->update(['status' => 'failed', 'error' => in_array($e->getMessage(), [
+                'api_key_invalid', 'insufficient_credits', 'rate_limited', 'provider_error', 'empty_output', 'incomplete_output',
+            ], true) ? $e->getMessage() : 'request_failed']);
+            throw $e;
         }
-        $text = $response->json('choices.0.message.content');
-        if (!is_string($text) || trim($text) === '') {
-            throw new RuntimeException('empty_output');
-        }
-        if ($response->json('choices.0.finish_reason') !== 'stop') {
-            throw new RuntimeException('incomplete_output');
-        }
-        return ['text' => $text, 'tokens' => (int) $response->json('usage.total_tokens', 0),
-            'cost' => (float) $response->json('usage.cost', 0)];
     }
 }

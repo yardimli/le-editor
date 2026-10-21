@@ -23,6 +23,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/books', [BookController::class, 'index'])->name('books.index');
     Route::post('/books', [BookController::class, 'store'])->middleware('throttle:10,1')->name('books.store');
     Route::get('/books/{book}', [BookController::class, 'show'])->name('books.show');
+    Route::get('/books/{book}/api-history', [BookController::class, 'apiHistory'])->name('books.api-history');
     Route::get('/books/{book}/history', [BookController::class, 'activity'])->name('books.activity');
     Route::get('/books/{book}/state', [BookController::class, 'state'])->name('books.state');
     Route::get('/books/{book}/runs/{run}', [BookController::class, 'history'])->name('books.history');

@@ -10,7 +10,7 @@ A Turkish-first, bilingual AI book editor built with Laravel 10, Breeze, Blade, 
 - Ten bilingual presets covering fiction, nonfiction, academic writing and poetry at different editing levels. Combine presets into a book-specific prompt; create, duplicate, edit and delete personal presets.
 - Encrypted per-user OpenRouter keys; optional server-key development mode.
 - Cached model discovery using the server key. Free models are excluded and output prices are filtered by environment limits.
-- Queued editing in adjustable word-sized chunks (default 2,500), with paragraph boundaries preserved where possible. The model returns plain prose; `jfcherng/php-diff` computes changes.
+- Queued editing in adjustable word-sized chunks (default 1,000), with paragraph boundaries preserved where possible. The model returns plain prose; `jfcherng/php-diff` computes changes.
 - Inline deletions/insertions, accept/reject/undo controls, pending-change navigation. Keyboard shortcuts: Alt+Up / Alt+Down.
 - A persistent editorial footer with processed-chunk progress and Pause, Resume and Restart controls. Completed suggestions remain; untouched chunks retain their source text. Metadata inference still uses a modal.
 - Optional prompt learning: review decisions are collected without LLM calls. After more than 20 suggestions, a dismissible footer hint offers to update the prompt. Learning runs only when requested, in batches of up to 50 decisions; shared presets remain unchanged.
@@ -398,3 +398,9 @@ Imports preserve heading styles, bold/italic/underline/strike, fonts, font sizes
 Older uploads recover formatting lazily from their retained original DOCX when the extracted text matches the stored original. Missing or mismatching originals cannot be recovered automatically. Run `php artisan migrate --force` and rebuild assets for the formatting metadata update.
 
 Editor state responses contain compact queue status and three change tokens. Unchanged polls omit manuscript text, prompts and run details; progress-only updates omit the chunk. Changed chunks exclude duplicate source/output copies, loaded ORM relations and raw Word XML. The library contains no queue notice and makes no queue/state polling requests. Work resumes when a queue-enabled page (such as the editor) is open; an already-running request can still finish after leaving it.
+
+### API request history
+
+New manuscripts default to 1,000 words per chunk; existing book settings are preserved. Run `php artisan migrate --force` and `npm run build` when deploying this update.
+
+Each book’s **API history** link lists completion requests newest first, 50 per page, including metadata inference, editorial passes, and prompt learning. The database stores full request and response bodies (including failed responses), HTTP status, input/output/total tokens and provider-reported USD cost. Missing usage is shown as not reported. Authentication headers are excluded and echoed API keys are redacted. Logs contain manuscript content, are accessible only to the book owner, and are deleted with the book. Catalog lookups are not manuscript requests and are not included.

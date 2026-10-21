@@ -21,6 +21,12 @@ class BookController extends Controller
     private function owner(Book $book): void { abort_unless($book->user_id === auth()->id(), 404); }
     private function idle(Book $book): void { abort_if($book->activeRun?->isActive(), 409, __('editor.busy')); }
 
+    public function apiHistory(Book $book)
+    {
+        $this->owner($book);
+        return view('books.api-history', ['book' => $book, 'logs' => $book->apiLogs()->latest('id')->paginate(50)]);
+    }
+
     public function index()
     {
         return view('books.index', ['books' => Book::where('user_id', auth()->id())->latest('updated_at')->paginate(12)]);

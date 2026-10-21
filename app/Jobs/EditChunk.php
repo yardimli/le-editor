@@ -64,7 +64,7 @@ class EditChunk implements ShouldQueue
                 || ($model['max_output'] && $outputBudget > $model['max_output'])) {
                 throw new \RuntimeException('chunk_too_large');
             }
-            $result = $api->complete($run->book->user, $run->model, $system, $formattedInput, $outputBudget);
+            $result = $api->complete($run->book->user, $run->model, $system, $formattedInput, $outputBudget, $run->book, 'editing');
             [$output, $italicRanges] = $formatting->decode(trim($result['text']));
             if (mb_strlen($output) < mb_strlen(trim($input)) * 0.45
                 || mb_strlen($output) > max(100, mb_strlen($input) * 2.5)

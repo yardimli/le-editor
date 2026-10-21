@@ -8,7 +8,7 @@
 - Ten genre/intensity presets (fiction, nonfiction, poetry, general); combine multiple presets and customize the book prompt. Personal presets supported.
 - OpenRouter user keys encrypted; `OPENROUTER_DEV_MODE=true` uses the server key. Model discovery always uses the server key.
 - Exclude free models; filter output USD per million tokens with environment minimum/maximum.
-- Chunk size defaults to 2,500 words and is editable before every run. LLM returns plain edited text; a diff library computes suggestions.
+- Chunk size defaults to 1,000 words and is editable before every run. LLM returns plain edited text; a diff library computes suggestions.
 - Browser-driven AJAX editing with a non-dismissible progress dialog. Explicit cancellation retains completed suggestions and untouched remaining text.
 - Accept/reject individual changes; feedback refines the book prompt asynchronously with revision history.
 - Rerun applies accepted changes, discards other active suggestions, and preserves run history.
@@ -156,3 +156,7 @@ Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript t
 - [x] Remove duplicate manuscript copies, raw Word properties and ORM relationships from browser chunk responses.
 - [x] Remove the library queue notice and all library queue/state polling.
 - [x] Verify combined polling interval, partial responses and no library queue bootstrap with automated tests.
+
+- [x] Default new manuscripts to 1,000-word chunks while preserving existing choices.
+- [x] Persist full OpenRouter completion request/response logs, failures, usage and cost without API keys.
+- [x] Add owner-only per-book API history, newest first, with 50-record pagination and cascade deletion.

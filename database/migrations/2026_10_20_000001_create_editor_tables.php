@@ -35,7 +35,7 @@ return new class extends Migration {
             $table->text('context')->nullable();
             $table->unsignedInteger('prompt_version')->default(1);
             $table->unsignedInteger('version')->default(1);
-            $table->unsignedInteger('chunk_size')->default(2500);
+            $table->unsignedInteger('chunk_size')->default(1000);
             $table->boolean('learn')->default(true);
             $table->string('model')->nullable();
             $table->unsignedBigInteger('active_run_id')->nullable();

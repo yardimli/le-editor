@@ -39,7 +39,7 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
         const model = getModels().find(m => m.id === $('#run-model').value);
         if (!model) return;
         const words = state?.word_count || 0, tokens = Math.ceil(words * 2);
-        const chunks = Math.max(1, Math.ceil(words / Number($('#chunk-size').value || 2500)));
+        const chunks = Math.max(1, Math.ceil(words / Number($('#chunk-size').value || 1000)));
         const promptTokens = Math.ceil(($('#book-prompt').value.length + $('#book-context').value.length + 1000) / 3);
         $('#cost-estimate').textContent = `${t('estimate')}: ~$${(((tokens + chunks * promptTokens) * model.input_price + tokens * model.output_price) / 1e6).toFixed(3)}`;
     }
