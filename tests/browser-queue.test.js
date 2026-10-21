@@ -143,11 +143,12 @@ test('editor uses one combined poll at three-second intervals without queue stat
     await timer(); assert.equal(polls, 2); assert.deepEqual(calls, []);
 });
 
-test('names the other active book and clears that message when this book takes over', async () => {
+test('avoids duplicating the main footer message while another book is active', async () => {
     const ui = setup({...active, working: true, task: {...active.task, book_id: 1, title: 'First book'}});
     ui.window.leBook = {id: 2};
     await flush();
-    assert.equal(ui.$('#header-ai-status').textContent, 'queue_other_book: First book');
+    assert.equal(ui.$('#header-ai-status').textContent, '');
+    assert.equal(ui.$('#header-ai-spinner').classList.contains('hidden'), false);
     ui.setState({...active, working: true, task: {...active.task, book_id: 2}});
     await ui.tick();
     assert.equal(ui.$('#header-ai-status').textContent, 'queue_editing');

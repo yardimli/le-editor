@@ -183,3 +183,5 @@ Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript t
 - [x] Remove queue notice and queue bootstrap from API history, prompts, settings and account pages.
 
 - [x] Show the active book title and waiting status when the account queue is processing a different book.
+
+- [x] Show the other-book waiting message only once in the footer, retaining the activity spinner.
