@@ -26,7 +26,7 @@ class SettingsController extends Controller
 
     public function models(OpenRouter $api)
     {
-        try { return response()->json(['models' => $api->models()]); }
+        try { return response()->json(['models' => $api->models(), 'default_model' => config('editor.model')]); }
         catch (\Throwable $e) { return response()->json(['message' => __('editor.catalog_unavailable')], 503); }
     }
 

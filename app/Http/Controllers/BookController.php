@@ -21,6 +21,22 @@ class BookController extends Controller
     private function owner(Book $book): void { abort_unless($book->user_id === auth()->id(), 404); }
     private function idle(Book $book): void { abort_if($book->activeRun?->isActive(), 409, __('editor.busy')); }
 
+    public function details(Request $request, Book $book)
+    {
+        $this->owner($book);
+        $data = $request->validate(['title' => 'required|string|max:255', 'language' => 'required|in:tr,en',
+            'context' => 'nullable|string|max:10000', 'chunk_size' => 'required|integer|min:100|max:10000',
+            'version' => 'required|integer']);
+        DB::transaction(function () use ($book, $data) {
+            $locked = Book::lockForUpdate()->findOrFail($book->id);
+            $this->idle($locked);
+            abort_unless($locked->version === $data['version'], 409, __('editor.conflict'));
+            $data['version']++; $data['metadata_status'] = 'complete';
+            $locked->update($data);
+        });
+        return back();
+    }
+
     public function apiHistory(Book $book)
     {
         $this->owner($book);
@@ -107,11 +123,11 @@ class BookController extends Controller
         $metadata = [
             'version' => $book->version, 'prompt_version' => $book->prompt_version,
             'editorial_genre' => $book->editorial_genre, 'italicize' => $book->italicize,
-            'prompt' => $book->prompt, 'context' => $book->context, 'learn' => $book->learn,
+            'chunk_size' => $book->chunk_size, 'prompt' => $book->prompt, 'context' => $book->context, 'learn' => $book->learn,
             'word_count' => $editor->words($book->text),
             'title' => $book->title, 'language' => $book->language,
             'metadata_status' => $book->metadata_status,
-            'learning_hint' => $book->learn && !$book->learning_hint_dismissed && $waiting > 20,
+            'learning_hint' => $book->learn && !$book->learning_hint_dismissed && $waiting > 50,
             'learning_awaiting' => $waiting, 'learning_requested' => (bool) $book->learning_requested,
             'learning_failed' => Feedback::where('book_id', $book->id)->where('status', 'failed')->count(),
             'learning_pending' => Feedback::where('book_id', $book->id)->where('status', 'pending')->count(),
@@ -200,7 +216,7 @@ class BookController extends Controller
             'title' => 'required|string|max:255', 'language' => 'required|in:tr,en',
             'prompt' => 'nullable|string|max:10000', 'context' => 'nullable|string|max:10000',
             'editorial_genre' => 'sometimes|in:fiction,nonfiction', 'italicize' => 'sometimes|boolean',
-            'learn' => 'required|boolean', 'prompt_version' => 'required|integer',
+            'learn' => 'sometimes|boolean', 'prompt_version' => 'required|integer',
         ]);
         DB::transaction(function () use ($data, $book) {
             $locked = Book::lockForUpdate()->findOrFail($book->id);
@@ -210,6 +226,7 @@ class BookController extends Controller
                 $locked->promptRevisions()->create(['prompt' => $locked->prompt ?? '', 'reason' => 'manual']);
                 $data['prompt_version']++;
             }
+            $data['learn'] = true;
             $data['metadata_status'] = 'complete';
             $locked->update($data);
         });
@@ -235,7 +252,7 @@ class BookController extends Controller
     public function run(Request $request, Book $book, OpenRouter $api, TextEditor $editor)
     {
         $this->owner($book);
-        $data = $request->validate(['model' => 'required|string|max:255', 'chunk_size' => 'required|integer|min:100|max:10000', 'version' => 'required|integer']);
+        $data = $request->validate(['reasoning_effort' => 'sometimes|in:low,medium,high', 'model' => 'required|string|max:255', 'chunk_size' => 'required|integer|min:100|max:10000', 'version' => 'required|integer']);
         try { $api->key($request->user()); $api->model($data['model']); }
         catch (\Throwable $e) { throw ValidationException::withMessages(['model' => __('editor.model_unavailable')]); }
         DB::transaction(function () use ($book, $data, $editor) {
@@ -259,7 +276,7 @@ class BookController extends Controller
             $originals = $previous->isNotEmpty() ? $previous->pluck('source')->all()
                 : $editor->originalChunks($locked->original_text, $chunks);
             $run = $locked->runs()->create([
-                'italicize' => $locked->italicize, 'prompt' => $locked->prompt, 'context' => $locked->context, 'model' => $data['model'],
+                'reasoning_effort' => $data['reasoning_effort'] ?? 'low', 'italicize' => $locked->italicize, 'prompt' => $locked->prompt, 'context' => $locked->context, 'model' => $data['model'],
                 'language' => $locked->language, 'chunk_size' => $data['chunk_size'], 'total_chunks' => count($chunks),
             ]);
             $sourceStyles = app(\App\Services\SourceFormatting::class);

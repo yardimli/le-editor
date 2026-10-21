@@ -13,7 +13,7 @@ A Turkish-first, bilingual AI book editor built with Laravel 10, Breeze, Blade, 
 - Queued editing in adjustable word-sized chunks (default 1,000), with paragraph boundaries preserved where possible. The model returns plain prose; `jfcherng/php-diff` computes changes.
 - Inline deletions/insertions, accept/reject/undo controls, pending-change navigation. Keyboard shortcuts: Alt+Up / Alt+Down.
 - A persistent editorial footer with processed-chunk progress and Pause, Resume and Restart controls. Completed suggestions remain; untouched chunks retain their source text. Metadata inference still uses a modal.
-- Optional prompt learning: review decisions are collected without LLM calls. After more than 20 suggestions, a dismissible footer hint offers to update the prompt. Learning runs only when requested, in batches of up to 50 decisions; shared presets remain unchanged.
+- Optional prompt learning: review decisions are collected without LLM calls. After more than 50 suggestions, a dismissible footer hint offers to update the prompt. Learning runs only when requested, in batches of up to 50 decisions; shared presets remain unchanged.
 - Reruns materialize accepted suggestions, archive the old review and use the latest prompt with a newly chosen model/chunk size.
 - Chunk navigation with Previous/Next, a clickable 1/N jump control and processed-book progress. Only the selected chunk is fetched.
 - Quill text and italic editing with an Edit/Review switch, with 10-second debounced autosave, Save now and per-chunk optimistic concurrency checks. Review completed chunks while later chunks run.
@@ -406,3 +406,9 @@ New manuscripts default to 1,000 words per chunk; existing book settings are pre
 Each book’s **API history** link lists completion requests newest first, 50 per page, including metadata inference, editorial passes, and prompt learning. The database stores full request and response bodies (including failed responses), HTTP status, input/output/total tokens and provider-reported USD cost. Missing usage is shown as not reported. Authentication headers are excluded and echoed API keys are redacted. Logs contain manuscript content, are accessible only to the book owner, and are deleted with the book. Catalog lookups are not manuscript requests and are not included.
 
 Review renders paragraph boundaries with compact spacing and coalesces identical adjacent visual styles. Import keeps paragraph boundaries and merges identical neighboring Word runs without changing text. LLM payloads contain manuscript text and optional `<le-italic>` markers, not browser HTML or font CSS. Export retains namespace declarations on detached Word properties, including modern revision attributes.
+
+### Editorial setup and thinking
+
+Book title, manuscript language, context and chunk size are edited from **Book settings** on the library page. Editorial setup contains presets, prompt, model and model-aware Low/Medium/High thinking (default Low). The filtered `OPENROUTER_MODEL` is the dropdown default; when unavailable, users must select a model.
+
+Thinking-capable models with numeric budgets receive 0.5×/1×/2× the estimated edited-text token allowance (minimum 1,024). Effort-only models receive a supported effort and additional estimated headroom. Total output includes edited-text allowance, thinking allowance and **2,048 extra tokens**. Model limits are checked before sending; oversized chunks require a smaller chunk size. Effort cannot guarantee a precise thinking cap. Requests log the actual reasoning parameters. Run migrations and rebuild assets when deploying.

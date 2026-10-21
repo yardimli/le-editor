@@ -67,12 +67,11 @@
             <section class="panel setup-main">
                 <p class="eyebrow">01 / {{ __('editor.prompt') }}</p>
                 <form id="book-settings" class="space-y-4 mt-5">
-                    <div><label for="book-prompt">{{ __('editor.prompt') }}</label><textarea id="book-prompt" name="prompt" rows="10" maxlength="10000" required aria-describedby="prompt-live-status">{{ $book->prompt }}</textarea></div>
+                    <div><label for="book-prompt">{{ __('editor.prompt') }}</label><textarea id="book-prompt" name="prompt" rows="6" maxlength="10000" required aria-describedby="prompt-live-status">{{ $book->prompt }}</textarea></div>
                     <p id="prompt-live-status" class="hint" role="status" aria-live="polite"></p>
-                    <div><label for="book-name">{{ __('editor.title') }}</label><input id="book-name" name="title" value="{{ $book->title }}" required maxlength="255"></div>
-                    <div><label for="book-language">{{ __('editor.language') }}</label><select id="book-language" name="language"><option value="tr" @selected($book->language === 'tr')>Türkçe</option><option value="en" @selected($book->language === 'en')>English</option></select></div>
-                    <div><label for="book-context">{{ __('editor.context') }}</label><textarea id="book-context" name="context" rows="3" maxlength="10000" placeholder="{{ __('editor.context_hint') }}">{{ $book->context }}</textarea></div>
-                    <label class="check-label"><input name="learn" type="checkbox" @checked($book->learn)> {{ __('editor.learn') }}</label>
+                    <input type="hidden" id="book-name" name="title" value="{{ $book->title }}">
+                    <input type="hidden" id="book-language" name="language" value="{{ $book->language }}">
+                    <input type="hidden" id="book-context" name="context" value="{{ $book->context }}">
                 </form>
                 <p class="hint mt-3" id="learning-status" role="status"></p><button class="quiet-button hidden text-accent" id="retry-learning">{{ __('editor.learn_now') }}</button>
             </section>
@@ -80,7 +79,8 @@
                 <p class="eyebrow">02 / {{ __('editor.run') }}</p>
                 <form id="run-form" class="space-y-4 mt-5">
                     <div><label for="run-model">{{ __('editor.model') }}</label><select id="run-model" name="model" required data-model-select data-current="{{ $book->model }}"><option value="">{{ __('editor.loading_models') }}</option></select><p class="hint model-error" role="alert"></p></div>
-                    <div><label for="chunk-size">{{ __('editor.chunk_size') }}</label><input id="chunk-size" name="chunk_size" type="number" min="100" max="10000" value="{{ $book->chunk_size }}" required></div>
+                    <input type="hidden" id="chunk-size" value="{{ $book->chunk_size }}">
+                    <div id="thinking-control" hidden><label for="thinking-level">{{ __('editor.thinking') }}</label><select id="thinking-level"><option value="low">{{ __('editor.thinking_low') }}</option><option value="medium">{{ __('editor.thinking_medium') }}</option><option value="high">{{ __('editor.thinking_high') }}</option></select><p class="hint">{{ __('editor.thinking_hint') }}</p></div>
                     <p class="hint">{{ __('editor.rerun_hint') }}</p>
                     <p class="text-sm" id="cost-estimate"></p><p class="hint">{{ __('editor.cost_hint') }}</p>
 

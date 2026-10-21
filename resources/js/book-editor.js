@@ -41,8 +41,12 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
         if (!model) return;
         const words = state?.word_count || 0, tokens = Math.ceil(words * 2);
         const chunks = Math.max(1, Math.ceil(words / Number($('#chunk-size').value || 1000)));
+        const level = $('#thinking-level').value;
+        const ratio = {low: .5, medium: 1, high: 2}[level];
+        const effortShare = {low: .2, medium: .5, high: .8}[level];
+        const thinkingTokens = model.reasoning ? Math.max(chunks * 1024, tokens * (model.reasoning.supports_max_tokens ? ratio : Math.max(ratio, effortShare / (1 - effortShare)))) : 0;
         const promptTokens = Math.ceil(($('#book-prompt').value.length + $('#book-context').value.length + 1000) / 3);
-        $('#cost-estimate').textContent = `${t('estimate')}: ~$${(((tokens + chunks * promptTokens) * model.input_price + tokens * model.output_price) / 1e6).toFixed(3)}`;
+        $('#cost-estimate').textContent = `${t('estimate')}: ~$${(((tokens + chunks * promptTokens) * model.input_price + (tokens + thinkingTokens + chunks * 2048) * model.output_price) / 1e6).toFixed(3)}`;
     }
     function showChunk(chunk, force = false) {
         if (!chunk || dirty || saving) return;
@@ -152,7 +156,7 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
                 $$('[name=editorial_genre]').forEach(radio => { radio.checked = radio.value === next.editorial_genre; });
                 $('#book-prompt').value = next.prompt || ''; book.promptVersion = next.prompt_version;
                 $('#book-name').value = next.title; $('#book-language').value = next.language;
-                $('#book-context').value = next.context || ''; settings.elements.learn.checked = next.learn;
+                $('#book-context').value = next.context || ''; $('#chunk-size').value = next.chunk_size;
                 $$('.preset-checkbox').forEach(box => { box.checked = !!next.prompt?.includes(box.dataset.instruction) || (next.italicize && box.dataset.presetKey === 'italics' && box.closest('[data-preset-genre]').dataset.presetGenre === next.editorial_genre); });
                 filterPresets();
             }
@@ -255,7 +259,8 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
         combinePresets();
     }));
     filterPresets();
-    $('#run-model').addEventListener('change', estimate);
+    $('#run-model').addEventListener('change', () => { $('#thinking-control').hidden = !getModels().find(m => m.id === $('#run-model').value)?.reasoning; estimate(); });
+    $('#thinking-level').addEventListener('change', estimate);
     $('#chunk-size').addEventListener('input', estimate);
     $('#run-form').addEventListener('submit', async event => {
         event.preventDefault(); if (busy || !settings.reportValidity()) return;
@@ -265,11 +270,11 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
             await save();
             const data = Object.fromEntries(new FormData(settings));
             data.italicize = $$('.preset-checkbox:checked').some(box => box.dataset.presetKey === 'italics');
-            data.learn = settings.elements.learn.checked; data.prompt_version = book.promptVersion;
+            data.learn = true; data.prompt_version = book.promptVersion;
             const saved = await request(base, 'PATCH', data);
             book.promptVersion = saved.prompt_version; settingsDirty = false;
             await request(`${base}/run`, 'POST', { model: $('#run-model').value,
-                chunk_size: Number($('#chunk-size').value), version: book.version });
+                reasoning_effort: $('#thinking-level').value, chunk_size: Number($('#chunk-size').value), version: book.version });
             setup.close(); signature = ''; await refresh(true);
         } catch (error) {
             $('#setup-error').textContent = error.message; $('#setup-error').classList.remove('hidden');

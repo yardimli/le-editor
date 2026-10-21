@@ -27,6 +27,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/books/{book}/history', [BookController::class, 'activity'])->name('books.activity');
     Route::get('/books/{book}/state', [BookController::class, 'state'])->name('books.state');
     Route::get('/books/{book}/runs/{run}', [BookController::class, 'history'])->name('books.history');
+    Route::patch('/books/{book}/details', [BookController::class, 'details'])->name('books.details');
     Route::patch('/books/{book}', [BookController::class, 'update'])->name('books.update');
     Route::put('/books/{book}/chunks/{chunk}/text', [BookController::class, 'saveChunk']);
     Route::post('/books/{book}/learning/dismiss', [BookController::class, 'dismissLearning']);

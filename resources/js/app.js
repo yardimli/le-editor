@@ -61,11 +61,12 @@ let models = [];
 async function loadModels() {
     if (!$$('[data-model-select]').length) return;
     try {
-        models = (await request('/models')).models;
+        const catalog = await request('/models');
+        models = catalog.models;
         $$('[data-model-select]').forEach(select => {
-            select.replaceChildren(new Option('—', ''));
+            select.replaceChildren(new Option(t('select_model'), ''));
             models.forEach(model => select.add(new Option(`${model.name} · $${model.output_price.toFixed(2)} / 1M`, model.id)));
-            select.value = select.dataset.current;
+            select.value = models.some(model => model.id === catalog.default_model) ? catalog.default_model : ''; 
             select.dispatchEvent(new Event('change'));
         });
         if (!models.length) $$('.model-error').forEach(el => { el.textContent = t('catalog_unavailable'); });
@@ -75,3 +76,6 @@ loadModels();
 
 const bookEditor = window.leBook ? startBookEditor({ $, $$, request, t, confirmAction, getModels: () => models }) : null;
 if (window.leQueue) startBrowserQueue({ $, request, t, window, document, setInterval, pollState: bookEditor?.poll });
+
+$$('[data-open-dialog]').forEach(button => button.addEventListener('click', () => document.getElementById(button.dataset.openDialog).showModal()));
+$$('[data-close-dialog]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));

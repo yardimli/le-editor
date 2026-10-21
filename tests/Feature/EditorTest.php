@@ -33,6 +33,20 @@ class EditorTest extends TestCase
             'prompt' => 'Polish lightly.', 'model' => 'test/paid', 'metadata_status' => 'complete']);
     }
 
+    public function test_library_book_settings_preserve_prompt_and_require_owner_and_current_version(): void
+    {
+        $book = $this->book();
+        $data = ['title' => 'New title', 'language' => 'en', 'context' => 'Protected names', 'chunk_size' => 800, 'version' => $book->fresh()->version];
+        $url = route('books.details', $book);
+        $this->actingAs($book->user)->get('/books')->assertSee($url, false)->assertSee('data-open-dialog', false);
+        $this->patch($url, $data)->assertRedirect();
+        $this->assertSame('New title', $book->fresh()->title);
+        $this->assertSame(800, $book->fresh()->chunk_size);
+        $this->assertSame($book->prompt, $book->fresh()->prompt);
+        $this->patchJson($url, $data)->assertStatus(409);
+        $this->actingAs(User::factory()->create())->patchJson($url, $data)->assertNotFound();
+    }
+
     public function test_library_links_to_owned_history_download_and_confirmed_delete(): void
     {
         $book = $this->book();
@@ -486,11 +500,11 @@ class EditorTest extends TestCase
         $this->assertSame($run->id, $book->fresh()->active_run_id);
     }
 
-    public function test_learning_hint_after_twenty_decisions_is_optional_and_dismissible(): void
+    public function test_learning_hint_after_fifty_decisions_is_optional_and_dismissible(): void
     {
         Http::preventStrayRequests();
         $book = $this->book();
-        for ($i = 0; $i < 20; $i++) {
+        for ($i = 0; $i < 50; $i++) {
             Feedback::create(['book_id' => $book->id, 'before' => "old $i", 'after' => "new $i",
                 'decision' => 'accepted', 'status' => 'awaiting']);
         }
@@ -508,7 +522,8 @@ class EditorTest extends TestCase
         $this->postJson("/books/{$book->id}/learning/retry")->assertOk();
         $this->postJson('/queue/step')->assertOk();
         $this->assertSame('A learned prompt.', $book->fresh()->prompt);
-        $this->assertSame(21, Feedback::where('book_id', $book->id)->where('status', 'complete')->count());
+        $this->postJson('/queue/step')->assertOk();
+        $this->assertSame(51, Feedback::where('book_id', $book->id)->where('status', 'complete')->count());
         $this->assertFalse($book->fresh()->learning_requested);
     }
 

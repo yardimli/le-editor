@@ -24,7 +24,7 @@ class OpenRouter
     {
         $cacheKey = 'openrouter.models.'.hash('sha256', implode('|', [
             config('editor.min_output_price'), config('editor.max_output_price'),
-            config('editor.api_key'), implode(',', config('editor.providers')), 'provider-catalog-v2',
+            config('editor.api_key'), implode(',', config('editor.providers')), 'provider-catalog-v3',
         ]));
         return Cache::remember($cacheKey, 3600, function () {
             if (!config('editor.api_key')) {
@@ -54,11 +54,44 @@ class OpenRouter
                 'input_price' => (float) ($model['pricing']['prompt'] ?? 0) * 1000000,
                 'context_length' => $model['context_length'] ?? 0,
                 'max_output' => $model['top_provider']['max_completion_tokens'] ?? null,
+                'reasoning' => $model['reasoning'] ?? (in_array('reasoning', $model['supported_parameters'] ?? []) ? ['supported_efforts' => null] : null),
             ])->sortBy([
                 fn ($a, $b) => array_search($a['provider'], config('editor.providers'), true) <=> array_search($b['provider'], config('editor.providers'), true),
                 ['output_price', 'asc'], ['name', 'asc'], ['id', 'asc'],
             ])->values()->all();
         });
+    }
+
+    public function editingBudget(array $model, string $input, string $system, string $level = 'low'): array
+    {
+        $visible = max(1024, (int) ceil(mb_strlen($input) / 2));
+        $thinking = 0; $reasoning = [];
+        $capabilities = $model['reasoning'] ?? null;
+        if (is_array($capabilities)) {
+            $thinking = max(1024, (int) ceil($visible * (['low' => 0.5, 'medium' => 1, 'high' => 2][$level] ?? 0.5)));
+            if ($capabilities['supports_max_tokens'] ?? false) {
+                $reasoning = ['max_tokens' => $thinking];
+            } else {
+                $supported = $capabilities['supported_efforts'] ?? ['low', 'medium', 'high'];
+                $effort = in_array($level, $supported) ? $level : null;
+                if (!$effort) {
+                    foreach (['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as $candidate) {
+                        if (in_array($candidate, $supported)) { $effort = $candidate; break; }
+                    }
+                }
+                $reasoning = $effort ? ['effort' => $effort] : ['enabled' => true];
+                // Effort is not a hard cap. Reserve room according to its approximate share.
+                $share = ['minimal' => .1, 'low' => .2, 'medium' => .5, 'high' => .8, 'xhigh' => .95, 'max' => .95][$effort ?? 'medium'];
+                $thinking = max($thinking, (int) ceil($visible * $share / (1 - $share)));
+            }
+        }
+        $total = $visible + $thinking + 2048;
+        $estimatedInput = (int) ceil(mb_strlen($system.$input) / 2);
+        if ((!empty($model['context_length']) && $estimatedInput + $total > $model['context_length'])
+            || (!empty($model['max_output']) && $total > $model['max_output'])) {
+            throw new RuntimeException('chunk_too_large');
+        }
+        return ['max_tokens' => $total, 'reasoning' => $reasoning];
     }
 
     public function model(string $id): array
@@ -67,7 +100,7 @@ class OpenRouter
             ?? throw new RuntimeException('model_unavailable');
     }
 
-    public function complete(User $user, string $model, string $system, string $content, ?int $maxTokens = null, ?Book $book = null, string $purpose = 'completion'): array
+    public function complete(User $user, string $model, string $system, string $content, ?int $maxTokens = null, ?Book $book = null, string $purpose = 'completion', array $reasoning = []): array
     {
         $payload = [
             'model' => $model,
@@ -77,6 +110,7 @@ class OpenRouter
             ],
             'temperature' => 0.2,
         ];
+        if ($reasoning) $payload['reasoning'] = $reasoning;
         if ($maxTokens) {
             $payload['max_tokens'] = $maxTokens;
         }
@@ -106,6 +140,7 @@ class OpenRouter
                     429 => 'rate_limited', default => 'provider_error',
                 });
             }
+            if ($response->json('choices.0.finish_reason') === 'length') throw new RuntimeException('incomplete_output');
             $text = $response->json('choices.0.message.content');
             if (!is_string($text) || trim($text) === '') {
                 throw new RuntimeException('empty_output');
