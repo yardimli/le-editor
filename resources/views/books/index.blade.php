@@ -11,7 +11,7 @@
                 <button type="button" class="text-accent" data-open-dialog="book-details-{{ $book->id }}">{{ __('editor.book_details') }}</button>
                 <a href="{{ route('books.api-history', $book) }}" class="text-accent">{{ __('editor.api_history') }}</a>
                 <a href="{{ route('books.activity', $book) }}" class="text-accent">{{ __('editor.history') }}</a>
-                <a href="{{ route('books.export', $book) }}" class="text-accent">{{ __('editor.export') }}</a>
+                <a data-docx-download href="{{ route('books.export', $book) }}" class="text-accent">{{ __('editor.export') }}</a>
                 <form method="POST" action="{{ route('books.destroy', $book) }}" data-confirm="{{ __('editor.delete_confirm') }}">@csrf @method('DELETE')<button type="submit" class="text-accent">{{ __('editor.delete') }}</button></form>
             </div>
             <dialog id="book-details-{{ $book->id }}" class="editor-dialog">

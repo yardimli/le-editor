@@ -140,4 +140,8 @@ return [
     'model_recommended' => 'Default model',
     'keep_selected_model' => 'No, I want to use the selected model',
     'start_editing' => 'Start editing',
+    'export_preparing' => 'Preparing DOCX… Large manuscripts may take several minutes. Please keep this page open.',
+    'export_receiving' => 'Receiving the prepared file…',
+    'export_ready' => 'Your DOCX is ready. If the download did not start, click Download.',
+    'export_failed' => 'The DOCX could not be prepared or downloaded. Please close this dialog and try again. If it repeats, check the server log for the latest export error.',
 ];

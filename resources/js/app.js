@@ -1,3 +1,4 @@
+import { startDocxDownloads } from './docx-download';
 import { startBookEditor } from './book-editor';
 import { startBrowserQueue } from './browser-queue';
 import './bootstrap';
@@ -80,3 +81,5 @@ if (window.leQueue) startBrowserQueue({ $, request, t, window, document, setInte
 
 $$('[data-open-dialog]').forEach(button => button.addEventListener('click', () => document.getElementById(button.dataset.openDialog).showModal()));
 $$('[data-close-dialog]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
+
+if ($('#docx-progress-dialog')) startDocxDownloads({ $, $$, t });

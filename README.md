@@ -440,3 +440,5 @@ The editorial model picker excludes Lite/Code/Coder/Codex names and IDs. It pres
 Qwen-only filtering excludes Thinking/Instruct variants and models with a stated total size below 100B. Active counts such as A22B do not count as total size; models with no stated size remain eligible.
 
 Nano Banana models are excluded by name or ID, including spaced and hyphenated spellings.
+
+Large DOCX exports use indexed formatting lookups and reuse saved italic ranges, avoiding repeated full-manuscript scans and per-chunk history queries. The export endpoint requests a 240-second PHP allowance; the documented Nginx/FPM/proxy timeouts must also permit long requests. Downloads show an indeterminate preparation spinner, file-receiving status and a ready link, preserving the server-generated filename. No background worker is required.

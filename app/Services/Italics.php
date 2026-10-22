@@ -31,9 +31,16 @@ class Italics
             $styles = app(SourceFormatting::class);
             return $styles->italicRanges($styles->project($book->original_text, $book->text, $styles->forBook($book)['runs'] ?? []));
         }
-        $ranges = []; $offset = 0;
+        $ranges = []; $offset = 0; $sourceOffset = 0;
+        $styles = app(SourceFormatting::class);
+        $slice = $styles->slicer($styles->forBook($book)['runs'] ?? []);
         foreach ($book->activeRun->chunks as $chunk) {
-            foreach ($this->ranges(app(SourceFormatting::class)->chunk($book, $chunk), $pending) as [$a, $b]) $ranges[] = [$a + $offset, $b + $offset];
+            $segments = $chunk->segments ?: app(TextEditor::class)->diff($chunk->source, $chunk->source);
+            if (collect($segments)->contains(fn ($s) => !array_key_exists('italics', $s) || !array_key_exists('before_italics', $s))) {
+                $segments = $styles->annotate($segments, $slice($sourceOffset, mb_strlen($chunk->source)));
+            }
+            $sourceOffset += mb_strlen($chunk->source);
+            foreach ($this->ranges($segments, $pending) as [$a, $b]) $ranges[] = [$a + $offset, $b + $offset];
             $offset += mb_strlen($chunk->segments ? app(ChunkReview::class)->text($chunk->segments, $pending) : $chunk->source);
         }
         return $ranges;

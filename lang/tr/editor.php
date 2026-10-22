@@ -140,4 +140,8 @@ return [
     'model_recommended' => 'Varsayılan model',
     'keep_selected_model' => 'Hayır, seçtiğim modeli kullanmak istiyorum',
     'start_editing' => 'Düzenlemeyi başlat',
+    'export_preparing' => 'DOCX hazırlanıyor… Büyük eserlerde birkaç dakika sürebilir. Lütfen bu sayfayı açık tutun.',
+    'export_receiving' => 'Hazırlanan dosya alınıyor…',
+    'export_ready' => 'DOCX dosyanız hazır. İndirme başlamadıysa İndir bağlantısına tıklayın.',
+    'export_failed' => 'DOCX hazırlanamadı veya indirilemedi. Pencereyi kapatıp tekrar deneyin. Sorun tekrarlanırsa sunucu günlüğündeki son dışa aktarma hatasını kontrol edin.',
 ];

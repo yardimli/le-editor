@@ -28,22 +28,42 @@ class SourceFormatting
         return $result;
     }
 
+    /** Build once for repeated range lookups, including overlapping spans. */
+    public function slicer(array $spans): \Closure
+    {
+        usort($spans, fn ($a, $b) => $a['start'] <=> $b['start']);
+        $ends = []; $max = 0;
+        foreach ($spans as $span) { $max = max($max, $span['end']); $ends[] = $max; }
+        return static function (int $offset, int $length) use ($spans, $ends): array {
+            if ($length <= 0) return [];
+            $lo = 0; $hi = count($spans);
+            while ($lo < $hi) { $mid = intdiv($lo + $hi, 2); if ($ends[$mid] <= $offset) $lo = $mid + 1; else $hi = $mid; }
+            $result = []; $limit = $offset + $length;
+            for ($i = $lo; $i < count($spans) && $spans[$i]['start'] < $limit; $i++) {
+                $span = $spans[$i]; $a = max($offset, $span['start']); $b = min($limit, $span['end']);
+                if ($a < $b) $result[] = array_merge($span, ['start' => $a - $offset, 'end' => $b - $offset]);
+            }
+            return $result;
+        };
+    }
+
     /** Equal text keeps exact runs; replacements inherit source styles proportionally. */
     public function project(string $before, string $after, array $spans): array
     {
-        if ($before === $after) return $spans;
+        if ($before === $after || !$spans) return $spans;
+        $slice = $this->slicer($spans);
         $result = []; $old = 0; $new = 0;
         foreach (app(TextEditor::class)->diff($before, $after) as $segment) {
             $a = mb_strlen($segment['before']); $b = mb_strlen($segment['after']);
             if ($a && $b) {
-                foreach ($this->slice($spans, $old, $a) as $span) {
+                foreach ($slice($old, $a) as $span) {
                     $start = $new + (int) floor($span['start'] * $b / $a);
                     $end = $new + (int) floor($span['end'] * $b / $a);
                     if ($start < $end) $result[] = array_merge($span, ['start' => $start, 'end' => $end]);
                 }
             } elseif ($b) {
                 $at = $old < mb_strlen($before) ? $old : max(0, $old - 1);
-                foreach ($this->slice($spans, $at, 1) as $span) $result[] = array_merge($span, ['start' => $new, 'end' => $new + $b]);
+                foreach ($slice($at, 1) as $span) $result[] = array_merge($span, ['start' => $new, 'end' => $new + $b]);
             }
             $old += $a; $new += $b;
         }
@@ -64,9 +84,9 @@ class SourceFormatting
 
     public function annotate(array $segments, array $spans): array
     {
-        $offset = 0;
+        $offset = 0; $slice = $this->slicer($spans);
         foreach ($segments as &$s) {
-            $before = $this->slice($spans, $offset, mb_strlen($s['before']));
+            $before = $slice($offset, mb_strlen($s['before']));
             $after = $this->project($s['before'], $s['after'], $before);
             $s['before_styles'] = $before; $s['styles'] = $after;
             $s['before_italics'] = $this->italicRanges($before);

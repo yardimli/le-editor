@@ -425,6 +425,7 @@ class BookController extends Controller
     public function export(Request $request, Book $book, TextEditor $editor, Docx $docx)
     {
         $this->owner($book);
+        set_time_limit(240);
         $path = $docx->export($book->original_text, $editor->rendered($book, true), $book->title, app(\App\Services\Italics::class)->book($book, true), Storage::exists($book->original_path) ? Storage::path($book->original_path) : null, $book->language);
         return response()->download($path, app(\App\Services\ExportFilename::class)->next($book),
             ['Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])->deleteFileAfterSend();

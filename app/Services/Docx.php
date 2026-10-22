@@ -63,6 +63,9 @@ class Docx
         }
         $styles = app(SourceFormatting::class);
         $mapped = $styles->project($original, $current, $format['runs']);
+        $sourceSlice = $styles->slicer($format['runs']);
+        $mappedSlice = $styles->slicer($mapped);
+        $italicSlice = $styles->slicer(array_map(fn ($r) => ['start' => $r[0], 'end' => $r[1]], $italics));
         $escape = fn ($value) => htmlspecialchars($value, ENT_XML1 | ENT_QUOTES, 'UTF-8');
         $run = function (string $text, string $properties = '', bool $deleted = false) use ($escape): string {
             $tag = $deleted ? 'delText' : 't'; $xml = '';
@@ -74,9 +77,9 @@ class Docx
             }
             return $xml;
         };
-        $formatted = function (string $text, int $offset, bool $inserted = false, bool $deleted = false) use ($run, $italics, $format, $mapped, $styles): string {
-            $spans = $styles->slice($deleted ? $format['runs'] : $mapped, $offset, mb_strlen($text));
-            $ranges = $deleted ? $styles->italicRanges($spans) : app(Italics::class)->slice($italics, $offset, mb_strlen($text));
+        $formatted = function (string $text, int $offset, bool $inserted = false, bool $deleted = false) use ($run, $sourceSlice, $mappedSlice, $italicSlice, $styles): string {
+            $spans = ($deleted ? $sourceSlice : $mappedSlice)($offset, mb_strlen($text));
+            $ranges = $deleted ? $styles->italicRanges($spans) : array_map(fn ($s) => [$s['start'], $s['end']], $italicSlice($offset, mb_strlen($text)));
             $bounds = [0, mb_strlen($text)];
             foreach ($spans as $span) { $bounds[] = $span['start']; $bounds[] = $span['end']; }
             foreach ($ranges as [$a, $b]) { $bounds[] = $a; $bounds[] = $b; }

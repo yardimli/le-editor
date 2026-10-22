@@ -202,3 +202,6 @@ Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript t
 - [x] Filter Qwen Thinking/Instruct and sub-100B total-size models, preserving large MoE models and unspecified sizes.
 
 - [x] Exclude Nano Banana image models and refresh the catalog cache.
+
+- [x] Optimize repeated export formatting lookups and italic collection; allow 240 seconds for export requests.
+- [x] Show DOCX preparation, receiving, ready and error states from editor and library downloads.
