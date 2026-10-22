@@ -10,8 +10,8 @@ test('review setup is idle, submission starts a step, completion stops spinner',
  const opener=element('opener');opener.dataset={analysisBook:'1',analysisKind:'summary'};
  globalThis.document={hidden:false,addEventListener(){}};
  globalThis.sessionStorage={setItem(){},removeItem(){},getItem(){return null;}};
- const calls=[];let finish;
- const request=async(url)=>{calls.push(url);if(url==='/analysis-prompts')return {prompts:{summary:'Summarize'}};if(url==='/books/1/analyses')return {id:1,book_id:1,kind:'summary',status:'queued'};if(url==='/analyses/1/step')return new Promise(resolve=>{finish=resolve;});throw Error(url);};
+ const calls=[];let finish, latest = null;
+ const request=async(url)=>{calls.push(url);if(url==='/books/1/analyses/latest?kind=summary')return {analysis:latest};if(url==='/analysis-prompts')return {prompts:{summary:'Summarize'}};if(url==='/books/1/analyses')return {id:1,book_id:1,kind:'summary',status:'queued'};if(url==='/analyses/1/step')return new Promise(resolve=>{finish=resolve;});throw Error(url);};
  startBookAnalysis({$, $$:selector=>selector==='[data-analysis-book]'?[opener]:[],request,t:key=>key});
  await opener.listeners.click();assert.equal($('#analysis-spinner').hidden,true);assert.equal($('#analysis-status-panel').hidden,true);
  await form.listeners.submit({preventDefault(){}});
@@ -19,4 +19,14 @@ test('review setup is idle, submission starts a step, completion stops spinner',
  finish({id:1,book_id:1,kind:'summary',status:'completed',result:'Summary'});
  await new Promise(resolve=>setImmediate(resolve));
  assert.equal($('#analysis-spinner').hidden,true);assert.equal($('#analysis-status').textContent,'analysis_completed');assert.equal($('#analysis-result').hidden,false);
+ latest={id:1,book_id:1,kind:'summary',status:'completed',result:'Saved summary'};
+ dialog.close(); calls.length=0;
+ await opener.listeners.click();
+ assert.equal($('#analysis-result').textContent,'Saved summary');
+ assert.equal(form.hidden,true);assert.equal($('#analysis-again').hidden,false);
+ assert.deepEqual(calls,['/books/1/analyses/latest?kind=summary']);
+ await $('#analysis-again').listeners.click();
+ assert.equal(form.hidden,false);assert.equal(form.elements.prompt.value,'Summarize');
+ assert.equal($('#analysis-again').hidden,true);
+ assert.equal(calls.includes('/analyses/1/step'),false);
 });

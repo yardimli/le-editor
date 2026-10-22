@@ -16,6 +16,7 @@ export function startBookAnalysis({ $, $$, request, t }) {
         $('#analysis-result').textContent = item.result || '';
         $('#analysis-result').hidden = !item.result;
         $('#analysis-retry').hidden = !['failed','cancelled'].includes(item.status);
+        $('#analysis-again').hidden = item.status !== 'completed';
         const running = ['queued', 'running'].includes(item.status);
         $('#analysis-spinner').hidden = true;
         message(t(`analysis_${item.status}`));
@@ -46,14 +47,31 @@ export function startBookAnalysis({ $, $$, request, t }) {
         try { const prefs = await savePrompt(true); prompt.value = prefs.prompts[kind]; message(''); }
         catch (e) { failed(e); }
     });
-    $$('[data-analysis-book]').forEach(button => button.addEventListener('click', async () => {
-        clearTimeout(timer); active = null; bookId = button.dataset.analysisBook; kind = button.dataset.analysisKind;
-        prompt.value = ''; form.hidden = false; $('#analysis-submit').hidden = false; $('#analysis-retry').hidden = true; $('#analysis-result').hidden = true; form.elements.word_count.value = 300; $('#analysis-result').textContent = ''; message('');
+    async function setup() {
+        const prefs = await request('/analysis-prompts');
+        clearTimeout(timer); active = null;
+        prompt.value = prefs.prompts[kind]; form.hidden = false;
+        $('#analysis-submit').hidden = false; $('#analysis-again').hidden = true;
+        $('#analysis-retry').hidden = true; $('#analysis-result').hidden = true;
+        form.elements.word_count.value = 300; $('#analysis-result').textContent = ''; message('');
         $('#analysis-spinner').hidden = true; $('#analysis-title').textContent = t(`create_${kind}`);
         $('#analysis-history-link').href = `/books/${bookId}/analyses`; $('#analysis-cancel').textContent = t('setup_cancel');
-        try { const prefs = await request('/analysis-prompts'); prompt.value = prefs.prompts[kind]; dialog.showModal(); }
-        catch (e) { failed(e); dialog.showModal(); }
+        if (!dialog.open) dialog.showModal();
+    }
+    $$('[data-analysis-book]').forEach(button => button.addEventListener('click', async () => {
+        if (button.disabled) return;
+        button.disabled = true;
+        clearTimeout(timer); active = null; bookId = button.dataset.analysisBook; kind = button.dataset.analysisKind;
+        try {
+            const result = await request(`/books/${bookId}/analyses/latest?kind=${kind}`);
+            if (result.analysis) { render(result.analysis); if (!dialog.open) dialog.showModal(); }
+            else await setup();
+        } catch (e) { failed(e); if (!dialog.open) dialog.showModal(); }
+        finally { button.disabled = false; }
     }));
+    $('#analysis-again').addEventListener('click', async () => {
+        try { await setup(); } catch(e) { failed(e); }
+    });
     form.addEventListener('submit', async event => {
         event.preventDefault(); if (starting) return;
         starting = true; message(t('analysis_running')); $('#analysis-spinner').hidden = false; const button = $('#analysis-submit'); button.disabled = true;

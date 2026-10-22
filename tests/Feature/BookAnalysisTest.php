@@ -63,4 +63,19 @@ class BookAnalysisTest extends TestCase {
   $this->postJson("/analyses/$id/step")->assertJsonPath('status','cancelled')->assertJsonPath('result',null);
   $this->assertSame(1,$book->apiLogs()->count());
  }
+ public function test_latest_review_is_completed_owned_and_separate_by_kind(): void {
+  $book=$this->book();
+  $url="/books/{$book->id}/analyses/latest";
+  $this->getJson($url.'?kind=summary')->assertOk()->assertJsonPath('analysis',null);
+  $first=$this->createReview($book);
+  BookAnalysis::find($first)->update(['status'=>'completed','result'=>'Old summary']);
+  $latest=$this->createReview($book);
+  BookAnalysis::find($latest)->update(['status'=>'completed','result'=>'Current summary']);
+  $this->createReview($book); // A newer unfinished request must not hide the saved result.
+  $logic=$this->createReview($book,'logic');
+  BookAnalysis::find($logic)->update(['status'=>'completed','result'=>'Logic review']);
+  $this->getJson($url.'?kind=summary')->assertJsonPath('analysis.id',$latest)->assertJsonMissingPath('analysis.input_text');
+  $this->getJson($url.'?kind=logic')->assertJsonPath('analysis.id',$logic);
+  $this->actingAs(User::factory()->create())->getJson($url.'?kind=summary')->assertNotFound();
+ }
 }

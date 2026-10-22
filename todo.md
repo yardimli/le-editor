@@ -217,3 +217,5 @@ Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript t
 - [x] Label the preset reset action Clear form / Formu temizle, style it as a spaced secondary button, and clear the selected preset ID when resetting.
 
 - [x] Remove book editorial history pages, library history link and restore endpoints.
+
+- [x] Open latest completed summary/logic result from review buttons; offer Create again in the footer to reopen setup and retain previous reviews.

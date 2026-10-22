@@ -169,4 +169,5 @@ return [
     'default_summary_prompt' => 'Write a faithful summary of this manuscript. Cover its main events or arguments, central characters or ideas, and conclusion. Include the ending when relevant. Preserve the author’s meaning and do not invent details.',
     'default_logic_prompt' => 'Review this manuscript for logic and continuity problems: contradictions, timeline errors, unexplained causal links, inconsistent character motivations, or unsupported arguments. Identify each issue with its location or a short quotation, explain why it may be a problem, and suggest a practical correction. Distinguish clear contradictions from ambiguities and intentional literary choices. Do not invent issues.',
     'clear_form' => 'Clear form',
+    'analysis_again' => 'Create again',
 ];

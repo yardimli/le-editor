@@ -14,6 +14,7 @@
         <a id="analysis-history-link" class="button-secondary dialog-history">{{ __('editor.analyses') }}</a>
         <button id="analysis-cancel" type="button" class="button-secondary">{{ __('editor.setup_cancel') }}</button>
         <button id="analysis-retry" type="button" class="button" hidden>{{ __('editor.resume') }}</button>
+        <button id="analysis-again" type="button" class="button" hidden>{{ __('editor.analysis_again') }}</button>
         <button id="analysis-submit" type="submit" form="analysis-form" class="button">{{ __('editor.analysis_create') }}</button>
     </div>
 </dialog>

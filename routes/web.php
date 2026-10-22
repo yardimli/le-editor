@@ -16,6 +16,7 @@ Route::post('/locale', function (Request $request) {
 
 Route::middleware('auth')->group(function () {
     Route::match(['get','patch'], '/analysis-prompts', [\App\Http\Controllers\BookAnalysisController::class, 'preferences']);
+    Route::get('/books/{book}/analyses/latest', [\App\Http\Controllers\BookAnalysisController::class, 'latest']);
     Route::get('/books/{book}/analyses', [\App\Http\Controllers\BookAnalysisController::class, 'index'])->name('books.analyses');
     Route::post('/books/{book}/analyses', [\App\Http\Controllers\BookAnalysisController::class, 'store'])->middleware('throttle:10,1');
     Route::get('/analyses/{analysis}', [\App\Http\Controllers\BookAnalysisController::class, 'show']);

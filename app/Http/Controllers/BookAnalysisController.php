@@ -28,6 +28,12 @@ class BookAnalysisController extends Controller {
   $this->owner($book);
   return view('books.analyses',['book'=>$book,'analyses'=>BookAnalysis::where('book_id',$book->id)->select(['id','book_id','kind','model','word_count','book_version','status','prompt','result','created_at'])->latest('id')->paginate(20)]);
  }
+ public function latest(Request $request, Book $book) {
+  $this->owner($book);
+  $data=$request->validate(['kind'=>'required|in:summary,logic']);
+  $analysis=BookAnalysis::where('book_id',$book->id)->where('kind',$data['kind'])->where('status','completed')->latest('id')->first();
+  return response()->json(['analysis'=>$analysis]);
+ }
  public function store(Request $request,Book $book,OpenRouter $api,TextEditor $editor) {
   $this->owner($book);
   $data=$request->validate(['kind'=>'required|in:summary,logic','model'=>'required|string|max:255','word_count'=>'required|integer|min:50|max:10000','prompt'=>'required|string|max:10000']);
