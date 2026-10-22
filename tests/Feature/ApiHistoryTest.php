@@ -50,6 +50,24 @@ class ApiHistoryTest extends TestCase
         $this->assertStringContainsString('[REDACTED]', ApiLog::find($log->id + 1)->response_body);
     }
 
+    public function test_byok_cost_estimate_is_saved_and_returned_with_reported_charge_preserved(): void
+    {
+        $book = $this->book();
+        config(['editor.dev_mode'=>true,'editor.api_key'=>'byok-cost-test-key']);
+        Http::fake([
+            '*/models'=>Http::response(['data'=>[['id'=>'openai/test','pricing'=>['prompt'=>'0.000002','completion'=>'0.000010']]]]),
+            '*/chat/completions'=>Http::response(['choices'=>[['message'=>['content'=>'Edited'],'finish_reason'=>'stop']],
+                'usage'=>['is_byok'=>true,'cost'=>0.001,'prompt_tokens'=>1000,'completion_tokens'=>2000,'total_tokens'=>3000]]),
+        ]);
+        $result=app(OpenRouter::class)->complete($book->user,'openai/test','Edit','Text',100,$book,'editing');
+        $this->assertEquals(.023,$result['cost']);
+        $log=$book->apiLogs()->first();
+        $this->assertEquals(.023,$log->cost);
+        $this->assertEquals(.001,$log->reported_cost);
+        $this->assertSame('token_estimate',$log->cost_source);
+        $this->assertEquals(10,$log->output_price);
+    }
+
     public function test_network_failures_preserve_request_without_leaking_exception_details(): void
     {
         $book = $this->book();

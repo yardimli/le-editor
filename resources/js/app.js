@@ -1,3 +1,4 @@
+import { startBookAnalysis } from './book-analysis';
 import { startDocxDownloads } from './docx-download';
 import { startBookEditor } from './book-editor';
 import { startBrowserQueue } from './browser-queue';
@@ -83,3 +84,5 @@ $$('[data-open-dialog]').forEach(button => button.addEventListener('click', () =
 $$('[data-close-dialog]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
 
 if ($('#docx-progress-dialog')) startDocxDownloads({ $, $$, t });
+
+startBookAnalysis({ $, $$, request, t });

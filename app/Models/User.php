@@ -45,6 +45,7 @@ class User extends Authenticatable
      * @var array<string, string>
      */
     protected $casts = [
+        'analysis_prompts' => 'array',
         'email_verified_at' => 'datetime',
         'llm_paused' => 'boolean',
         'llm_lease_until' => 'datetime',

@@ -205,3 +205,7 @@ Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript t
 
 - [x] Optimize repeated export formatting lookups and italic collection; allow 240 seconds for export requests.
 - [x] Show DOCX preparation, receiving, ready and error states from editor and library downloads.
+
+- [x] BYOK provider-aware cost reporting, token-price fallback, reported-charge breakdown and historical backfill command.
+
+- [x] Full-manuscript summary and logic reviews with model selection, 300-word default, per-user reusable/resettable prompts, saved review history, cancellation/resume, context checks and book API logging.

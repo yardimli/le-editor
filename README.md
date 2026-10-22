@@ -442,3 +442,19 @@ Qwen-only filtering excludes Thinking/Instruct variants and models with a stated
 Nano Banana models are excluded by name or ID, including spaced and hyphenated spellings.
 
 Large DOCX exports use indexed formatting lookups and reuse saved italic ranges, avoiding repeated full-manuscript scans and per-chunk history queries. The export endpoint requests a 240-second PHP allowance; the documented Nginx/FPM/proxy timeouts must also permit long requests. Downloads show an indeterminate preparation spinner, file-receiving status and a ready link, preserving the server-generated filename. No background worker is required.
+
+### BYOK costs
+
+OpenAI/Anthropic BYOK API history uses reported upstream provider cost plus OpenRouter charges. If upstream cost is missing, token counts are multiplied by catalog input/output rates and labeled as estimates; list-price estimates may not reflect caching discounts or your billing agreement. Reasoning is already included in completion tokens and is not counted twice. Original OpenRouter charges and raw responses remain available. Unknown costs remain unavailable rather than zero.
+
+Deploy with `php artisan migrate --force`. The migration recovers upstream costs from saved responses. Run `php artisan api-logs:recalculate-costs` to fill missing historical BYOK costs using current catalog prices; saved rate snapshots are preserved on subsequent runs. New editing-run totals use the corrected cost; historical run aggregates are unchanged, while API history totals include the backfilled costs.
+
+### Book summaries and logic reviews
+
+Each book in the library has Create summary, Check logic flow, and review-history actions. Choose a model, an approximate output word count (default 300), and an editable prompt. Summary and logic prompts are saved separately per user across all their books; Reset restores the localized default.
+
+Each review sends the entire approved manuscript (including manual edits, excluding pending/rejected suggestions) as plain text in one request. Context/output limits are checked before sending; oversized books are not silently truncated. Multiple results are retained with their prompt, model and manuscript version, newest first (20 per page). Full requests/responses, tokens and costs are recorded in the book API history.
+
+Requests run through the browser with the existing account lease, without a worker. The dialog shows activity and supports cancellation; cancelled results are discarded, though an already-sent provider request can still be billed and logged. Refreshing the same tab reopens its review; failed/cancelled reviews can be resumed from history.
+
+Deploy these changes with `php artisan migrate --force` and `npm run build`.

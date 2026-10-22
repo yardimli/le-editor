@@ -77,6 +77,25 @@ class OpenRouter
         });
     }
 
+    public function tokenPrices(string $model): ?array
+    {
+        // Unfiltered catalog: historical models may no longer appear in the editor dropdown.
+        $prices = Cache::remember('openrouter.prices.'.hash('sha256', (string) config('editor.api_key')), 3600, function () {
+            if (!config('editor.api_key')) throw new RuntimeException('catalog_key_required');
+            $response = Http::withToken(config('editor.api_key'))->timeout(30)->get(config('editor.base_url').'/models');
+            if (!$response->successful()) throw new RuntimeException('catalog_unavailable');
+            $prices = [];
+            foreach ($response->json('data', []) as $entry) {
+                if (is_numeric($entry['pricing']['prompt'] ?? null) && is_numeric($entry['pricing']['completion'] ?? null)) {
+                    $prices[$entry['id']] = ['input_price' => (float) $entry['pricing']['prompt'] * 1000000,
+                        'output_price' => (float) $entry['pricing']['completion'] * 1000000];
+                }
+            }
+            return $prices;
+        });
+        return $prices[$model] ?? null;
+    }
+
     public function editingBudget(array $model, string $input, string $system, string $level = 'low'): array
     {
         $visible = max(1024, (int) ceil(mb_strlen($input) / 2));
@@ -149,6 +168,14 @@ class OpenRouter
                 'total_tokens' => $response->json('usage.total_tokens'),
                 'cost' => $response->json('usage.cost'),
             ]);
+            $usage = $response->json('usage', []);
+            $prices = null;
+            if (!empty($usage['is_byok']) && in_array(explode('/', $model)[0], ['openai', 'anthropic'])
+                && !is_numeric($usage['cost_details']['upstream_inference_cost'] ?? null)) {
+                try { $prices = $this->tokenPrices($model); } catch (\Throwable $ignored) { /* Missing prices must not discard an edit. */ }
+            }
+            $accounting = app(ApiCost::class)->calculate($model, $usage ?: [], $prices);
+            $log->update($accounting);
             if (!$response->successful()) {
                 throw new RuntimeException(match ($response->status()) {
                     401, 403 => 'api_key_invalid', 402 => 'insufficient_credits',
@@ -165,7 +192,7 @@ class OpenRouter
             }
             $log->update(['status' => 'completed']);
             return ['text' => $text, 'tokens' => (int) $response->json('usage.total_tokens', 0),
-                'cost' => (float) $response->json('usage.cost', 0)];
+                'cost' => (float) ($accounting['cost'] ?? 0)];
         } catch (\Throwable $e) {
             $log->update(['status' => 'failed', 'error' => in_array($e->getMessage(), [
                 'api_key_invalid', 'insufficient_credits', 'rate_limited', 'provider_error', 'empty_output', 'incomplete_output',

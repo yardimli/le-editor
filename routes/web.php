@@ -15,6 +15,13 @@ Route::post('/locale', function (Request $request) {
 })->name('locale');
 
 Route::middleware('auth')->group(function () {
+    Route::match(['get','patch'], '/analysis-prompts', [\App\Http\Controllers\BookAnalysisController::class, 'preferences']);
+    Route::get('/books/{book}/analyses', [\App\Http\Controllers\BookAnalysisController::class, 'index'])->name('books.analyses');
+    Route::post('/books/{book}/analyses', [\App\Http\Controllers\BookAnalysisController::class, 'store'])->middleware('throttle:10,1');
+    Route::get('/analyses/{analysis}', [\App\Http\Controllers\BookAnalysisController::class, 'show']);
+    Route::post('/analyses/{analysis}/step', [\App\Http\Controllers\BookAnalysisController::class, 'step']);
+    Route::post('/analyses/{analysis}/cancel', [\App\Http\Controllers\BookAnalysisController::class, 'cancel']);
+    Route::post('/analyses/{analysis}/resume', [\App\Http\Controllers\BookAnalysisController::class, 'resume']);
     Route::get('/queue/state', [\App\Http\Controllers\QueueController::class, 'state']);
     Route::post('/queue/step', [\App\Http\Controllers\QueueController::class, 'step']);
     Route::post('/queue/cancel', [\App\Http\Controllers\QueueController::class, 'cancel']);
