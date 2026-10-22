@@ -219,3 +219,5 @@ Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript t
 - [x] Remove book editorial history pages, library history link and restore endpoints.
 
 - [x] Open latest completed summary/logic result from review buttons; offer Create again in the footer to reopen setup and retain previous reviews.
+
+- [x] Show Read summary / Read logic review for completed reviews, update labels after creation, and keep review history access only in the dialog on the library page.

@@ -9,6 +9,10 @@ export function startBookAnalysis({ $, $$, request, t }) {
     function failed(error) { message(error.message || t('analysis_failed')); $('#analysis-spinner').hidden = true; $('#analysis-retry').hidden = !active; }
     function render(item) {
         if (!item?.id || !['queued','running','completed','failed','cancelled'].includes(item.status)) throw new Error(t('analysis_failed'));
+        if (item.status === 'completed') {
+            $$('[data-analysis-book]').filter(button => String(button.dataset.analysisBook) === String(item.book_id) && button.dataset.analysisKind === item.kind)
+                .forEach(button => { button.textContent = t(`read_${item.kind}`); });
+        }
         active = item; bookId = item.book_id; kind = item.kind; remember();
         form.hidden = true; $('#analysis-submit').hidden = true;
         $('#analysis-title').textContent = t(`create_${kind}`);

@@ -46,7 +46,10 @@ class BookController extends Controller
 
     public function index()
     {
-        return view('books.index', ['books' => Book::where('user_id', auth()->id())->latest('updated_at')->paginate(12)]);
+        return view('books.index', ['books' => Book::where('user_id', auth()->id())->withExists([
+            'analyses as has_summary' => fn ($query) => $query->where('kind', 'summary')->where('status', 'completed'),
+            'analyses as has_logic' => fn ($query) => $query->where('kind', 'logic')->where('status', 'completed'),
+        ])->latest('updated_at')->paginate(12)]);
     }
 
     public function store(Request $request, Docx $docx, OpenRouter $api)

@@ -170,4 +170,6 @@ return [
     'default_logic_prompt' => 'Bu eseri mantık ve tutarlılık sorunları açısından incele: çelişkiler, zaman çizelgesi hataları, açıklanmayan neden-sonuç ilişkileri, tutarsız karakter motivasyonları veya desteklenmeyen savlar. Her sorunu konumu veya kısa bir alıntıyla belirt, neden sorun olabileceğini açıkla ve uygulanabilir bir düzeltme öner. Açık çelişkileri belirsizliklerden ve bilinçli edebi tercihlerden ayır. Sorun uydurma.',
     'clear_form' => 'Formu temizle',
     'analysis_again' => 'Yeniden oluştur',
+    'read_summary' => 'Özeti oku',
+    'read_logic' => 'Mantık incelemesini oku',
 ];

@@ -8,9 +8,8 @@
                 <div class="book-cover"><span>{{ strtoupper($book->language) }}</span><h2>{{ $book->title }}</h2><small>LE / {{ str_pad($book->id, 3, '0', STR_PAD_LEFT) }}</small></div>
                 <div class="p-5"><h3 class="font-semibold truncate">{{ $book->title }}</h3><p class="muted text-xs mt-2">{{ number_format(app(\App\Services\TextEditor::class)->words($book->text)) }} {{ __('editor.words') }} · {{ $book->updated_at->format('d.m.Y') }}</p><span class="text-accent text-sm inline-block mt-5">{{ __('editor.open') }} ↗</span></div>
             </a><div class="px-5 pb-5 flex flex-wrap gap-3 text-xs">
-                <button type="button" class="text-accent" data-analysis-book="{{ $book->id }}" data-analysis-kind="summary">{{ __('editor.create_summary') }}</button>
-                <button type="button" class="text-accent" data-analysis-book="{{ $book->id }}" data-analysis-kind="logic">{{ __('editor.create_logic') }}</button>
-                <a href="{{ route('books.analyses', $book) }}" class="text-accent">{{ __('editor.analyses') }}</a>
+                <button type="button" class="text-accent" data-analysis-book="{{ $book->id }}" data-analysis-kind="summary">{{ __('editor.'.($book->has_summary ? 'read_summary' : 'create_summary')) }}</button>
+                <button type="button" class="text-accent" data-analysis-book="{{ $book->id }}" data-analysis-kind="logic">{{ __('editor.'.($book->has_logic ? 'read_logic' : 'create_logic')) }}</button>
                 <button type="button" class="text-accent" data-open-dialog="book-details-{{ $book->id }}">{{ __('editor.book_details') }}</button>
                 <a href="{{ route('books.api-history', $book) }}" class="text-accent">{{ __('editor.api_history') }}</a>
                 <a data-docx-download href="{{ route('books.export', $book) }}" class="text-accent">{{ __('editor.export') }}</a>

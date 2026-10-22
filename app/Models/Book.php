@@ -8,6 +8,7 @@ class Book extends Model
 {
     protected $guarded = ['id'];
     protected $attributes = ['chunk_size' => 1000];
+    public function analyses() { return $this->hasMany(BookAnalysis::class); }
     public function apiLogs() { return $this->hasMany(ApiLog::class); }
     protected $casts = ['original_formatting' => 'array', 'italics' => 'array', 'italicize' => 'boolean', 'learn' => 'boolean', 'learning_requested' => 'boolean', 'learning_hint_dismissed' => 'boolean'];
     protected $hidden = ['original_text', 'original_path'];
