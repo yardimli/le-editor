@@ -47,15 +47,16 @@ class EditorTest extends TestCase
         $this->actingAs(User::factory()->create())->patchJson($url, $data)->assertNotFound();
     }
 
-    public function test_library_links_to_owned_history_download_and_confirmed_delete(): void
+    public function test_library_has_download_and_delete_but_no_history_or_restore(): void
     {
         $book = $this->book();
         $this->actingAs($book->user)->get('/books')->assertOk()
-            ->assertSee(route('books.activity', $book), false)
+            ->assertDontSee('/books/'.$book->id.'/history', false)
             ->assertSee(route('books.export', $book), false)
             ->assertSee('data-confirm=', false);
-        $this->get(route('books.activity', $book))->assertOk()->assertSee($book->title);
-        $this->actingAs(User::factory()->create())->get(route('books.activity', $book))->assertNotFound();
+        $this->get('/books/'.$book->id.'/history')->assertNotFound();
+        $this->get('/books/'.$book->id.'/runs/1')->assertNotFound();
+        $this->post('/books/'.$book->id.'/restore')->assertNotFound();
     }
 
     public function test_genre_presets_are_bilingual_distinct_and_idempotent(): void

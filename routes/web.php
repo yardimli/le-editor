@@ -31,9 +31,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/books', [BookController::class, 'store'])->middleware('throttle:10,1')->name('books.store');
     Route::get('/books/{book}', [BookController::class, 'show'])->name('books.show');
     Route::get('/books/{book}/api-history', [BookController::class, 'apiHistory'])->name('books.api-history');
-    Route::get('/books/{book}/history', [BookController::class, 'activity'])->name('books.activity');
     Route::get('/books/{book}/state', [BookController::class, 'state'])->name('books.state');
-    Route::get('/books/{book}/runs/{run}', [BookController::class, 'history'])->name('books.history');
     Route::patch('/books/{book}/details', [BookController::class, 'details'])->name('books.details');
     Route::patch('/books/{book}', [BookController::class, 'update'])->name('books.update');
     Route::put('/books/{book}/chunks/{chunk}/text', [BookController::class, 'saveChunk']);
@@ -43,8 +41,9 @@ Route::middleware('auth')->group(function () {
     Route::post('/books/{book}/cancel', [BookController::class, 'cancel'])->name('books.cancel');
     Route::post('/books/{book}/retry', [BookController::class, 'retry'])->name('books.retry');
     Route::post('/books/{book}/learning/retry', [BookController::class, 'retryLearning'])->name('books.learning');
-    Route::post('/books/{book}/restore', [BookController::class, 'restore'])->name('books.restore');
     Route::patch('/books/{book}/chunks/{chunk}', [BookController::class, 'decision'])->name('books.decision');
+    Route::post('/books/{book}/export/prepare', [BookController::class, 'prepareExport']);
+    Route::get('/books/{book}/downloads/{token}', [BookController::class, 'preparedDownload'])->whereUuid('token')->name('books.prepared-download');
     Route::get('/books/{book}/export', [BookController::class, 'export'])->name('books.export');
     Route::delete('/books/{book}', [BookController::class, 'destroy'])->name('books.destroy');
     Route::get('/settings', [SettingsController::class, 'edit'])->name('settings');

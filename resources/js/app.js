@@ -53,6 +53,9 @@ $$('[data-copy-preset]').forEach(button => button.addEventListener('click', () =
     Object.entries(data).forEach(([key, value]) => { form.elements[key].value = value; });
     form.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }));
+$('#preset-form')?.addEventListener('reset', event => {
+    event.currentTarget.elements.id.value = '';
+});
 $('#test-key')?.addEventListener('click', async event => {
     event.target.disabled = true;
     try { await request('/settings/test', 'POST', {}); $('#key-result').textContent = t('connected'); }

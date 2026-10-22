@@ -72,9 +72,9 @@
     @auth
     <dialog id="docx-progress-dialog" class="editor-dialog" aria-labelledby="docx-progress-title">
         <h2 id="docx-progress-title">{{ __('editor.export_title') }}</h2>
-        <div class="flex items-center gap-3 my-5"><span id="docx-progress-spinner" class="queue-spinner" aria-hidden="true"></span><p id="docx-progress-status" role="status" aria-live="polite"></p></div>
-        <a id="docx-ready-link" class="text-accent underline" hidden>{{ __('editor.download') }}</a>
-        <button type="button" id="close-docx-progress" class="button-secondary mt-4">{{ __('editor.close') }}</button>
+        <div class="dialog-status"><span id="docx-progress-spinner" class="queue-spinner" aria-hidden="true"></span><p id="docx-progress-status" role="status" aria-live="polite"></p></div>
+        <div class="dialog-actions"><a id="docx-ready-link" class="button" hidden>{{ __('editor.download') }}</a>
+        <button type="button" id="close-docx-progress" class="button-secondary">{{ __('editor.close') }}</button></div>
     </dialog>
     @endauth
     @auth<script>window.leStrings = @js(__('editor'));</script>@endauth

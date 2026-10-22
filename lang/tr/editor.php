@@ -142,7 +142,7 @@ return [
     'start_editing' => 'Düzenlemeyi başlat',
     'export_preparing' => 'DOCX hazırlanıyor… Büyük eserlerde birkaç dakika sürebilir. Lütfen bu sayfayı açık tutun.',
     'export_receiving' => 'Hazırlanan dosya alınıyor…',
-    'export_ready' => 'DOCX dosyanız hazır. İndirme başlamadıysa İndir bağlantısına tıklayın.',
+    'export_ready' => 'DOCX dosyanız hazır. Dosyayı kaydetmek için İndir düğmesine tıklayın.',
     'export_failed' => 'DOCX hazırlanamadı veya indirilemedi. Pencereyi kapatıp tekrar deneyin. Sorun tekrarlanırsa sunucu günlüğündeki son dışa aktarma hatasını kontrol edin.',
     'cost_source_openrouter' => 'OpenRouter bildirimi',
     'cost_source_byok_reported' => 'BYOK sağlayıcı + OpenRouter',
@@ -168,4 +168,5 @@ return [
     'api_logic' => 'Mantık akışı incelemesi',
     'default_summary_prompt' => 'Bu eserin anlamına sadık bir özetini yaz. Ana olayları veya savları, temel karakterleri veya fikirleri ve sonucu kapsa. Gerektiğinde eserin sonunu da açıkla. Yazarın anlamını koru ve ayrıntı uydurma.',
     'default_logic_prompt' => 'Bu eseri mantık ve tutarlılık sorunları açısından incele: çelişkiler, zaman çizelgesi hataları, açıklanmayan neden-sonuç ilişkileri, tutarsız karakter motivasyonları veya desteklenmeyen savlar. Her sorunu konumu veya kısa bir alıntıyla belirt, neden sorun olabileceğini açıkla ve uygulanabilir bir düzeltme öner. Açık çelişkileri belirsizliklerden ve bilinçli edebi tercihlerden ayır. Sorun uydurma.',
+    'clear_form' => 'Formu temizle',
 ];

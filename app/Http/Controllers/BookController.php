@@ -83,17 +83,6 @@ class BookController extends Controller
         ]);
     }
 
-    public function activity(Book $book)
-    {
-        $this->owner($book);
-        return view('books.activity', [
-            'book' => $book,
-            'runs' => $book->runs()->latest()->get(),
-            'versions' => $book->versions()->latest()->select('id', 'book_id', 'reason', 'created_at')->get(),
-            'promptRevisions' => $book->promptRevisions()->latest()->get(),
-        ]);
-    }
-
     public function state(Request $request, Book $book, TextEditor $editor)
     {
         $this->owner($book);
@@ -201,14 +190,6 @@ class BookController extends Controller
             $chunk->segments = app(\App\Services\SourceFormatting::class)->chunk($locked, $chunk);
             return response()->json(['version' => $locked->version, 'chunk' => $this->chunkPayload($chunk)]);
         });
-    }
-
-    public function history(Book $book, int $run)
-    {
-        $this->owner($book);
-        $history = $book->runs()->with('chunks')->findOrFail($run);
-        foreach ($history->chunks as $chunk) $chunk->segments = app(\App\Services\SourceFormatting::class)->chunk($book, $chunk);
-        return view('books.history', ['book' => $book, 'run' => $history]);
     }
 
     public function update(Request $request, Book $book)
@@ -382,26 +363,6 @@ class BookController extends Controller
         return $response;
     }
 
-    public function restore(Request $request, Book $book)
-    {
-        $this->owner($book);
-        $data = $request->validate(['kind' => 'required|in:manuscript,prompt', 'id' => 'required|integer']);
-        DB::transaction(function () use ($book, $data) {
-            $locked = Book::lockForUpdate()->findOrFail($book->id);
-            $this->idle($locked);
-            if ($data['kind'] === 'prompt') {
-                $revision = $locked->promptRevisions()->findOrFail($data['id']);
-                $locked->promptRevisions()->create(['prompt' => $locked->prompt ?? '', 'reason' => 'restore']);
-                $locked->update(['prompt' => $revision->prompt, 'prompt_version' => $locked->prompt_version + 1]);
-            } else {
-                $revision = $locked->versions()->findOrFail($data['id']);
-                $locked->versions()->create(['text' => app(TextEditor::class)->rendered($locked), 'italics' => app(\App\Services\Italics::class)->book($locked), 'reason' => 'before_restore']);
-                $locked->update(['text' => $revision->text, 'italics' => $revision->italics, 'active_run_id' => null, 'version' => $locked->version + 1]);
-            }
-        });
-        return back()->with('status', __('editor.restored'));
-    }
-
     public function retryLearning(Book $book)
     {
         $this->owner($book);
@@ -429,6 +390,23 @@ class BookController extends Controller
         $path = $docx->export($book->original_text, $editor->rendered($book, true), $book->title, app(\App\Services\Italics::class)->book($book, true), Storage::exists($book->original_path) ? Storage::path($book->original_path) : null, $book->language);
         return response()->download($path, app(\App\Services\ExportFilename::class)->next($book),
             ['Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])->deleteFileAfterSend();
+    }
+
+    public function prepareExport(Request $request, Book $book, TextEditor $editor, Docx $docx)
+    {
+        $this->owner($book);
+        set_time_limit(240);
+        $downloads = app(\App\Services\PreparedDownload::class);
+        $downloads->cleanup(auth()->id());
+        $path = $docx->export($book->original_text, $editor->rendered($book, true), $book->title, app(\App\Services\Italics::class)->book($book, true), Storage::exists($book->original_path) ? Storage::path($book->original_path) : null, $book->language);
+        $token = $downloads->store($book, $path, app(\App\Services\ExportFilename::class)->next($book));
+        return response()->json(['url'=>route('books.prepared-download', [$book, $token])]);
+    }
+
+    public function preparedDownload(Book $book, string $token)
+    {
+        $this->owner($book);
+        return app(\App\Services\PreparedDownload::class)->download($book, $token);
     }
 
     public function destroy(Book $book)

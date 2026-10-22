@@ -44,7 +44,7 @@ class BookAnalysisController extends Controller {
    return BookAnalysis::create($data+['book_id'=>$book->id,'input_text'=>$text,'book_version'=>$book->version]);
   });
   app(BrowserQueue::class)->resume(auth()->id(),false);
-  return response()->json($analysis,201);
+  return response()->json($analysis->fresh(),201);
  }
  private function budget(array $model,string $text,int $words,string $prompt): array {
   $visible=max(1024,$words*4); $reasoning=[]; $thinking=0;

@@ -21,7 +21,7 @@
             <div><label for="genre">{{ __('editor.genre') }}</label><select id="genre" name="genre">@foreach(['general','fiction','nonfiction','poetry'] as $value)<option value="{{ $value }}">{{ __('editor.'.$value) }}</option>@endforeach</select></div>
             <div><label for="intensity">{{ __('editor.intensity') }}</label><select id="intensity" name="intensity">@foreach(['light','medium','deep'] as $value)<option value="{{ $value }}">{{ __('editor.level_'.$value) }}</option>@endforeach</select></div>
             <div><label for="instruction">{{ __('editor.instruction') }}</label><textarea id="instruction" name="instruction" rows="9" required maxlength="10000"></textarea></div>
-            <button class="button">{{ __('editor.save') }}</button><button class="quiet-button" type="reset">{{ __('editor.new_prompt') }}</button>
+            <div class="flex flex-wrap items-center gap-3"><button type="submit" class="button">{{ __('editor.save') }}</button><button class="button-secondary" type="reset">{{ __('editor.clear_form') }}</button></div>
         </form>
     </aside>
 </div>

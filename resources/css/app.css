@@ -151,3 +151,20 @@ input[type=radio] { width: 1rem; height: 1rem; color: var(--accent); border-colo
 .page-heading.api-history-heading { padding: .75rem 0; gap: .75rem; }
 .api-history-heading h1 { font-family: inherit; font-size: 1rem; line-height: 1.5; font-weight: 700; }
 .api-history-heading .count-badge { font-size: .875rem; padding: .25rem .5rem; }
+
+/* Author display rules must respect native hidden state in dialogs. */
+[hidden] { display: none !important; }
+
+/* Respect native hidden state in dialogs, including spinners and buttons. */
+[hidden] { display: none !important; }
+
+.editor-dialog { max-height: calc(100dvh - 2rem); overflow-y: auto; }
+.editor-dialog h2 { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 1.125rem; line-height: 1.5; font-weight: 600; }
+.dialog-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .625rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+.dialog-actions .button, .dialog-actions .button-secondary { display: inline-flex; align-items: center; justify-content: center; min-height: 2.5rem; text-align: center; margin: 0; }
+.dialog-history { margin-right: auto !important; }
+.dialog-status { display: flex; align-items: center; gap: .75rem; margin-top: 1.25rem; padding: 1rem; background: var(--soft); border-radius: .5rem; font-size: .875rem; line-height: 1.6; }
+.dialog-status .queue-spinner { flex-shrink: 0; width: 1.125rem; height: 1.125rem; border-width: 2px; }
+.analysis-dialog { max-width: 48rem; }
+.analysis-result { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: .875rem; line-height: 1.75; max-height: 45vh; overflow-y: auto; margin-top: 1rem; }
+@media (max-width: 600px) { .editor-dialog { padding: 1.25rem; } .dialog-actions > .button, .dialog-actions > .button-secondary { flex: 1 1 auto; } .dialog-history { flex-basis: 100% !important; } }

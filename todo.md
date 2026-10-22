@@ -209,3 +209,11 @@ Chunk workspace validation: 59 PHP tests passed (723 assertions), 9 JavaScript t
 - [x] BYOK provider-aware cost reporting, token-price fallback, reported-charge breakdown and historical backfill command.
 
 - [x] Full-manuscript summary and logic reviews with model selection, 300-word default, per-user reusable/resettable prompts, saved review history, cancellation/resume, context checks and book API logging.
+
+- [x] Prepare DOCX before showing an explicit Download button; fix hidden spinner CSS and clean up older private downloads on the next preparation request.
+
+- [x] Return initial review status so browser processing starts; validate review responses, show retry on failures, hide idle spinners/status/results, and align dialog actions with compact responsive styling.
+
+- [x] Label the preset reset action Clear form / Formu temizle, style it as a spaced secondary button, and clear the selected preset ID when resetting.
+
+- [x] Remove book editorial history pages, library history link and restore endpoints.

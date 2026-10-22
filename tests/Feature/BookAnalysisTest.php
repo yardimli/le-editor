@@ -16,7 +16,7 @@ class BookAnalysisTest extends TestCase {
   $this->actingAs($book->user); return $book;
  }
  private function createReview(Book $book,string $kind='summary'): int {
-  return $this->postJson("/books/{$book->id}/analyses",['kind'=>$kind,'model'=>'test/model','word_count'=>300,'prompt'=>'My review instructions'])->assertCreated()->assertJsonMissingPath('input_text')->json('id');
+  return $this->postJson("/books/{$book->id}/analyses",['kind'=>$kind,'model'=>'test/model','word_count'=>300,'prompt'=>'My review instructions'])->assertCreated()->assertJsonPath('status','queued')->assertJsonMissingPath('input_text')->json('id');
  }
  public function test_both_review_types_log_full_request_response_tokens_and_cost(): void {
   $book=$this->book();

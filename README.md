@@ -379,7 +379,7 @@ Reported run cost covers chunk-editing calls, not metadata or prompt-learning ca
 
 Quill is pinned to 2.0.2; the application reads text and italic attributes from Quill Delta operations and does not use Quill HTML export. This avoids adding the HTML-export advisory reported for 2.0.3.
 
-The library provides History, reviewed DOCX download and confirmed deletion for each book. History contains editorial runs, manuscript snapshots and prompt versions. Downloads from the library include approved and author changes only and never approve pending suggestions. The status band and work footer are both 40 pixels high, with compact controls and footer notifications.
+The library provides reviewed DOCX download and confirmed deletion for each book. The old editorial history and undo/restore pages have been removed; API history and summary/logic reviews remain available. Downloads from the library include approved and author changes only and never approve pending suggestions. The status band and work footer are both 40 pixels high, with compact controls and footer notifications.
 
 ### Fiction / non-fiction presets and italic emphasis
 
@@ -458,3 +458,5 @@ Each review sends the entire approved manuscript (including manual edits, exclud
 Requests run through the browser with the existing account lease, without a worker. The dialog shows activity and supports cancellation; cancelled results are discarded, though an already-sent provider request can still be billed and logged. Refreshing the same tab reopens its review; failed/cancelled reviews can be resumed from history.
 
 Deploy these changes with `php artisan migrate --force` and `npm run build`.
+
+DOCX downloads now prepare a private server-side file first, then show a ready message and an explicit Download button. The spinner stops when preparation finishes; downloads do not start automatically. Prepared files older than 24 hours are removed on that user's next preparation request (no scheduled worker). Recent links remain reusable and require book ownership.

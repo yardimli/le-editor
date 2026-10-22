@@ -142,7 +142,7 @@ return [
     'start_editing' => 'Start editing',
     'export_preparing' => 'Preparing DOCX… Large manuscripts may take several minutes. Please keep this page open.',
     'export_receiving' => 'Receiving the prepared file…',
-    'export_ready' => 'Your DOCX is ready. If the download did not start, click Download.',
+    'export_ready' => 'Your DOCX is ready. Click Download to save the file.',
     'export_failed' => 'The DOCX could not be prepared or downloaded. Please close this dialog and try again. If it repeats, check the server log for the latest export error.',
     'cost_source_openrouter' => 'OpenRouter reported',
     'cost_source_byok_reported' => 'BYOK provider + OpenRouter',
@@ -168,4 +168,5 @@ return [
     'api_logic' => 'Logic flow review',
     'default_summary_prompt' => 'Write a faithful summary of this manuscript. Cover its main events or arguments, central characters or ideas, and conclusion. Include the ending when relevant. Preserve the author’s meaning and do not invent details.',
     'default_logic_prompt' => 'Review this manuscript for logic and continuity problems: contradictions, timeline errors, unexplained causal links, inconsistent character motivations, or unsupported arguments. Identify each issue with its location or a short quotation, explain why it may be a problem, and suggest a practical correction. Distinguish clear contradictions from ambiguities and intentional literary choices. Do not invent issues.',
+    'clear_form' => 'Clear form',
 ];
