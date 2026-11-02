@@ -34,6 +34,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/books/{book}/api-history', [BookController::class, 'apiHistory'])->name('books.api-history');
     Route::get('/books/{book}/state', [BookController::class, 'state'])->name('books.state');
     Route::patch('/books/{book}/details', [BookController::class, 'details'])->name('books.details');
+    Route::get('/books/{book}/original', [BookController::class, 'originalDownload'])->name('books.original');
     Route::patch('/books/{book}', [BookController::class, 'update'])->name('books.update');
     Route::put('/books/{book}/chunks/{chunk}/text', [BookController::class, 'saveChunk']);
     Route::post('/books/{book}/learning/dismiss', [BookController::class, 'dismissLearning']);

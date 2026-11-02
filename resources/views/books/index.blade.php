@@ -17,6 +17,7 @@
             </div>
             <dialog id="book-details-{{ $book->id }}" class="editor-dialog">
                 <h2>{{ __('editor.book_details') }}</h2>
+                <a href="{{ route('books.original', $book) }}" class="text-accent text-sm inline-block mt-3">{{ __('editor.download_original') }}</a>
                 <form action="{{ route('books.details', $book) }}" method="POST" class="space-y-3 mt-3">@csrf @method('PATCH')
                     <input type="hidden" name="version" value="{{ $book->version }}">
                     <label class="block">{{ __('editor.title') }}<input name="title" value="{{ $book->title }}" required maxlength="255"></label>

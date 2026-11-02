@@ -37,6 +37,14 @@ class BookController extends Controller
         return back();
     }
 
+    public function originalDownload(Book $book)
+    {
+        $this->owner($book);
+        abort_unless($book->original_path && Storage::exists($book->original_path), 404);
+
+        return Storage::download($book->original_path, $book->original_filename ?: 'manuscript-'.$book->id.'.docx');
+    }
+
     public function apiHistory(Book $book)
     {
         $this->owner($book);

@@ -122,6 +122,7 @@ return [
     'thinking_hint' => 'Parça uzunluğuna göre ölçeklenir. Yalnızca efor destekleyen modellerde bütçe yaklaşık hesaplanır.',
     'select_model' => 'Kullanılacak modeli seçin',
     'book_details' => 'Eser ayarları',
+    'download_original' => 'Yüklenen orijinal dosyayı indir',
     'run_scope_title' => 'Devam mı, yeniden düzenleme mi?',
     'run_scope_hint' => 'Devam seçeneği tamamlanan parçaları ve incelemeleri korur; yeni ayarları tamamlanmamış parçalara uygular. Mevcut parça sınırları korunur. Tümünü yeniden düzenleme, onaylanan değişiklikleri uygular ve kalan önerileri kaldırarak bütün parçaları yeniden işler.',
     'continue_unfinished' => 'Tamamlanmamış parçalara devam et',
