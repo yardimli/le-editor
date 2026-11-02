@@ -1,8 +1,21 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {projectStyles,annotateStyles,chunkStyles} from '../resources/js/source-styles.js';
+import {projectStyles,annotateStyles,chunkStyles,styleNode} from '../resources/js/source-styles.js';
 import {italicOps,italicRanges,applyItalics,readItalics} from '../resources/js/italics.js';
 import {draftSegments} from '../resources/js/draft-review.js';
+
+test('heading rendering respects explicit bold-off while preserving font and size',()=>{
+ for(const [bold,weight] of [[false,'400'],[true,'700'],[undefined,'700']]){
+  const node={style:{}};
+  styleNode(node,{header:2,bold,size:'12pt',font:'Times New Roman'});
+  assert.equal(node.style.fontWeight,weight);
+  assert.equal(node.style.fontSize,'12pt');
+  assert.equal(node.style.fontFamily,'Times New Roman');
+ }
+ const body={style:{}};
+ styleNode(body,{bold:false});
+ assert.equal(body.style.fontWeight,'400');
+});
 test('replacement words inherit imported bold and heading attributes',()=>{
  const styles=[{start:0,end:7,attributes:{bold:true,header:1}}];
  const projected=projectStyles('Chapter','Section',styles);

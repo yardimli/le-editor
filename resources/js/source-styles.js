@@ -31,12 +31,12 @@ export function chunkStyles(segments=[]) {
  let offset=0;return segments.flatMap(s=>{const after=s.type==='equal'||s.status!=='rejected';const result=(s[after?'styles':'before_styles']||[]).map(x=>({...x,start:x.start+offset,end:x.end+offset}));offset+=Array.from(s[after?'after':'before']).length;return result;});
 }
 export function styleNode(node, attrs={}) {
- if(attrs.bold)node.style.fontWeight='700';
+ if(attrs.bold !== undefined)node.style.fontWeight=attrs.bold?'700':'400';
  if(attrs.underline)node.style.textDecoration='underline';
  if(attrs.strike)node.style.textDecoration=(attrs.underline?'underline ':'')+'line-through';
  if(/^#[a-f0-9]{6}$/i.test(attrs.color||''))node.style.color=attrs.color;
  if(/^[\d.]+pt$/.test(attrs.size||''))node.style.fontSize=attrs.size;
  if(attrs.font)node.style.fontFamily=attrs.font;
- if(attrs.header){node.style.fontWeight='700';if(!attrs.size)node.style.fontSize=({1:'2em',2:'1.5em',3:'1.2em'})[attrs.header]||'1.1em';}
+ if(attrs.header){if(attrs.bold === undefined)node.style.fontWeight='700';if(!attrs.size)node.style.fontSize=({1:'2em',2:'1.5em',3:'1.2em'})[attrs.header]||'1.1em';}
  if(attrs.script) {node.style.verticalAlign=attrs.script==='super'?'super':'sub';node.style.fontSize='.75em';}
 }
