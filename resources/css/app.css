@@ -95,7 +95,7 @@ body:has(.work-footer) { padding-bottom: 110px; }
 .chunk-sheet .save-indicator { margin-top: 0; }
 .chunk-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2rem; }
 .chunk-workspace > section { min-width: 0; }
-.chunk-workspace .manuscript-text { font-size: 1rem; line-height: 1.9; }
+.chunk-sheet .manuscript-text { font-size: 1rem; line-height: 1.9; }
 #chunk-editor { border: 1px solid var(--line); border-radius: .5rem; font-family: Georgia, 'Times New Roman', serif; background: var(--sheet); }
 #chunk-editor .ql-editor { min-height: 400px; font-size: 1rem; line-height: 1.9; padding: 1rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 #chunk-editor.ql-disabled { opacity: .65; }

@@ -9,7 +9,7 @@ export function projectStyles(before, after, spans) {
  for(const p of diffArrays(tokens(before),tokens(after))){const a=p.added?'':p.value.join(''),b=p.removed?'':p.value.join('');const last=parts.at(-1);if((p.added||p.removed)&&last?.change){last.before+=a;last.after+=b;}else parts.push({before:a,after:b,change:!!(p.added||p.removed)});}
  let old=0,next=0; const result=[];
  for(const p of parts){const a=Array.from(p.before).length,b=Array.from(p.after).length;
-  if(a&&b)for(const s of sliceStyles(spans,old,a)){const start=next+Math.floor(s.start*b/a),end=next+Math.floor(s.end*b/a);if(start<end)result.push({...s,start,end});}
+  if(a&&b){for(const s of sliceStyles(spans,old,a)){const start=next+Math.floor(s.start*b/a),end=next+Math.floor(s.end*b/a);if(start<end)result.push({...s,start,end});}}
   else if(b)for(const s of sliceStyles(spans,Math.min(old,Math.max(0,Array.from(before).length-1)),1))result.push({...s,start:next,end:next+b});
   old+=a;next+=b;
  }
@@ -17,7 +17,15 @@ export function projectStyles(before, after, spans) {
 }
 export function annotateStyles(segments, previous) {
  let offset=0;const spans=previous.flatMap(s=>{const value=(s.before_styles||[]).map(x=>({...x,start:x.start+offset,end:x.end+offset}));offset+=Array.from(s.before).length;return value;});
- offset=0;return segments.map(s=>{const before=sliceStyles(spans,offset,Array.from(s.before).length);offset+=Array.from(s.before).length;return {...s,before_styles:before,styles:projectStyles(s.before,s.after,before),before_italics:before.filter(x=>x.attributes?.italic).map(x=>[x.start,x.end])};});
+ const sourceLength=offset;
+ offset=0;return segments.map(s=>{
+  const length=Array.from(s.before).length,before=sliceStyles(spans,offset,length);
+  const styles=!length&&s.after&&sourceLength
+   ? sliceStyles(spans,Math.min(offset,sourceLength-1),1).map(span=>({...span,start:0,end:Array.from(s.after).length}))
+   : projectStyles(s.before,s.after,before);
+  offset+=length;
+  return {...s,before_styles:before,styles,before_italics:before.filter(x=>x.attributes?.italic).map(x=>[x.start,x.end])};
+ });
 }
 export function chunkStyles(segments=[]) {
  let offset=0;return segments.flatMap(s=>{const after=s.type==='equal'||s.status!=='rejected';const result=(s[after?'styles':'before_styles']||[]).map(x=>({...x,start:x.start+offset,end:x.end+offset}));offset+=Array.from(s[after?'after':'before']).length;return result;});

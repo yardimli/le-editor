@@ -29,3 +29,24 @@ test('immediate draft review and Quill retain source styles without changing tex
  assert.equal(ops[0].attributes.bold,true);
  assert.deepEqual(readItalics(ops,17),[[11,17]]);
 });
+
+
+test('pure insertions inherit the source font in review spans and Quill ops',()=>{
+ const attributes={font:'Times New Roman',size:'12pt'};
+ const spans=[{start:0,end:3,attributes}];
+ const previous=[{type:'equal',before:'İlk',after:'İlk',before_styles:spans,styles:spans}];
+ const equal=text=>({type:'equal',before:text,after:text});
+ const insert={type:'change',before:'',after:'Yeni🙂',status:'pending'};
+ for(const segments of [[insert,equal('İlk')],[equal('İ'),insert,equal('lk')],[equal('İlk'),insert]]){
+  const result=annotateStyles(segments,previous);
+  const addition=result.find(s=>s.before==='');
+  assert.deepEqual(addition.styles,[{start:0,end:5,attributes}]);
+  assert.deepEqual(addition.before_styles,[]);
+  const text=result.map(s=>s.after).join('');
+  const ops=italicOps(text,[],chunkStyles(result));
+  assert.equal(ops[0].insert,text);
+  assert.deepEqual(ops[0].attributes,attributes);
+ }
+ assert.deepEqual(projectStyles('İlk','İlk yeni',spans),[{start:0,end:3,attributes},{start:3,end:8,attributes}]);
+ assert.deepEqual(annotateStyles([insert],[])[0].styles,[]);
+});

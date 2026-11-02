@@ -86,9 +86,16 @@ class SourceFormatting
     public function annotate(array $segments, array $spans): array
     {
         $offset = 0; $slice = $this->slicer($spans);
+        $sourceLength = array_sum(array_map(fn ($s) => mb_strlen($s['before']), $segments));
         foreach ($segments as &$s) {
             $before = $slice($offset, mb_strlen($s['before']));
             $after = $this->project($s['before'], $s['after'], $before);
+            // Pure insertions have no source range of their own. Borrow formatting
+            // at the insertion point, or the last source character at the end.
+            if ($s['before'] === '' && $s['after'] !== '' && $sourceLength > 0) {
+                $after = array_map(fn ($span) => array_merge($span, ['start' => 0, 'end' => mb_strlen($s['after'])]),
+                    $slice(min($offset, $sourceLength - 1), 1));
+            }
             $s['before_styles'] = $before; $s['styles'] = $after;
             $s['before_italics'] = $this->italicRanges($before);
             if (!array_key_exists('italics', $s)) $s['italics'] = $this->italicRanges($after);

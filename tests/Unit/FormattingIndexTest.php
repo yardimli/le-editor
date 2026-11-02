@@ -3,6 +3,22 @@ namespace Tests\Unit;
 use App\Services\SourceFormatting;
 use PHPUnit\Framework\TestCase;
 class FormattingIndexTest extends TestCase {
+    public function test_insertions_inherit_source_font_at_start_middle_and_end(): void {
+        $styles = new SourceFormatting;
+        $attrs = ['font' => 'Times New Roman', 'size' => '12pt'];
+        $spans = [['start' => 0, 'end' => 3, 'attributes' => $attrs]];
+        $equal = fn ($text) => ['type' => 'equal', 'before' => $text, 'after' => $text];
+        $insert = ['type' => 'change', 'before' => '', 'after' => 'Yeni🙂', 'italics' => []];
+        foreach ([[$insert, $equal('İlk')], [$equal('İ'), $insert, $equal('lk')], [$equal('İlk'), $insert]] as $segments) {
+            $result = $styles->annotate($segments, $spans);
+            $addition = array_values(array_filter($result, fn ($s) => $s['before'] === ''))[0];
+            $this->assertSame([], $addition['before_styles']);
+            $this->assertSame([['start' => 0, 'end' => 5, 'attributes' => $attrs]], $addition['styles']);
+            $this->assertSame([], $addition['italics']);
+        }
+        $this->assertSame([], $styles->annotate([$insert], [])[0]['styles']);
+    }
+
     public function test_index_matches_linear_slices_for_overlaps_gaps_and_boundaries(): void {
         $styles = new SourceFormatting;
         $spans = [['start'=>0,'end'=>40,'attributes'=>['bold'=>true]], ['start'=>3,'end'=>8], ['start'=>11,'end'=>12], ['start'=>50,'end'=>60]];
