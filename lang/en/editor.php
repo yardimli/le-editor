@@ -1,5 +1,6 @@
 <?php
 return [
+    'scroll_to_top' => 'Scroll to top',
     'block_edits' => 'edits',
     'block_accepted' => 'Accepted',
     'block_rejected' => 'Rejected',

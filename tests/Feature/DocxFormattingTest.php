@@ -39,6 +39,45 @@ class DocxFormattingTest extends TestCase
         $zip->addFromString('[Content_Types].xml',$types);$zip->close();return $path;
     }
 
+    public function test_import_skips_direct_and_inherited_hidden_text_without_offset_gaps(): void
+    {
+        $path = $this->source(); $output = null;
+        try {
+            $zip = new ZipArchive; $zip->open($path);
+            $ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+            $zip->addFromString('word/styles.xml', '<w:styles xmlns:w="'.$ns.'">'
+                .'<w:style w:type="paragraph" w:styleId="HiddenBase"><w:rPr><w:vanish/></w:rPr></w:style>'
+                .'<w:style w:type="paragraph" w:styleId="Form"><w:basedOn w:val="HiddenBase"/></w:style>'
+                .'<w:style w:type="character" w:styleId="HiddenChar"><w:rPr><w:vanish/></w:rPr></w:style>'
+                .'<w:style w:type="paragraph" w:styleId="UiHidden"><w:hidden/><w:semiHidden/></w:style>'
+                .'</w:styles>');
+            $zip->addFromString('word/document.xml', '<w:document xmlns:w="'.$ns.'"><w:body>'
+                .'<w:p><w:r><w:t>Visible</w:t></w:r><w:r><w:rPr><w:vanish/></w:rPr><w:t>SECRET</w:t><w:br/><w:tab/></w:r><w:r><w:t> text</w:t></w:r></w:p>'
+                .'<w:p><w:pPr><w:pStyle w:val="Form"/></w:pPr><w:r><w:t>Top of Form</w:t></w:r></w:p>'
+                .'<w:p><w:r><w:rPr><w:rStyle w:val="HiddenChar"/></w:rPr><w:t>Bottom of Form</w:t></w:r></w:p>'
+                .'<w:p><w:pPr><w:pStyle w:val="Form"/></w:pPr><w:r><w:rPr><w:vanish w:val="0"/><w:i/></w:rPr><w:t>Shown</w:t></w:r></w:p>'
+                .'<w:p><w:pPr><w:pStyle w:val="UiHidden"/></w:pPr><w:r><w:t>Style is hidden in the menu only</w:t></w:r></w:p>'
+                .'<w:p/><w:p><w:r><w:t>End</w:t></w:r></w:p>'
+                .'</w:body></w:document>');
+            $zip->close();
+            $docx = app(Docx::class); $import = $docx->import($path);
+            $expected = "Visible text\n\nShown\n\nStyle is hidden in the menu only\n\n\n\nEnd";
+            $this->assertSame($expected, $import['text']);
+            $this->assertSame([[14, 19]], $import['italics']);
+            $this->assertCount(5, $import['formatting']['paragraphs']);
+            $this->assertSame(14, $import['formatting']['paragraphs'][1]['start']);
+            $this->assertSame(mb_strlen($expected), collect($import['formatting']['runs'])->max('end'));
+            $output = $docx->export($expected, $expected, 'Test', $import['italics'], $path);
+            $this->assertSame($expected, $docx->import($output)['text']);
+            unlink($output); $output = null;
+            // Existing books with the old baseline must still be exportable.
+            $legacy = $docx->import($path, true);
+            $this->assertStringContainsString('Top of Form', $legacy['text']);
+            $output = $docx->export($legacy['text'], $legacy['text'], 'Legacy', $legacy['italics'], $path);
+            $this->assertFileExists($output);
+        } finally { unlink($path); if ($output) unlink($output); }
+    }
+
     public function test_export_keeps_extension_namespaces_in_detached_properties(): void
     {
         $path = $this->source(); $output = null;

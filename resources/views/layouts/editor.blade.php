@@ -66,6 +66,7 @@
     </dialog>
     @endauth
     @auth<script>window.leStrings = @js(__('editor'));</script>@endauth
+    <button type="button" id="scroll-to-top" class="scroll-to-top" aria-label="{{ __('editor.scroll_to_top') }}" title="{{ __('editor.scroll_to_top') }}" hidden><span aria-hidden="true">↑</span></button>
     @stack('scripts')
 </body>
 </html>

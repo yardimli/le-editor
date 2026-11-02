@@ -1,5 +1,6 @@
 <?php
 return [
+    'scroll_to_top' => 'Başa dön',
     'block_edits' => 'düzenleme',
     'block_accepted' => 'Kabul',
     'block_rejected' => 'Ret',

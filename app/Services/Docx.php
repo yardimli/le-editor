@@ -11,7 +11,7 @@ class Docx
 {
     private const NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 
-    public function import(string $path): array
+    public function import(string $path, bool $includeHidden = false): array
     {
         $zip = new ZipArchive;
         if ($zip->open($path) !== true) { throw new RuntimeException('invalid_docx'); }
@@ -28,10 +28,12 @@ class Docx
             $styles = new OoxmlFormatting($zip);
             foreach ($xp->query('//w:body//w:p[not(ancestor::w:del)]') as $paragraph) {
                 $text = ''; $paragraphStyle = $styles->paragraph($paragraph, $xp);
-                $start = $offset;
+                $start = $offset; $skippedHidden = false;
                 foreach ($xp->query('.//w:t[not(ancestor::w:del)] | .//w:br | .//w:tab', $paragraph) as $node) {
+                    $runStyle = $styles->run($node, $xp, $paragraphStyle);
+                    if (!$includeHidden && ($runStyle['attributes']['hidden'] ?? false)) { $skippedHidden = true; continue; }
                     $part = match ($node->localName) { 'br' => "\n", 'tab' => "\t", default => $node->textContent };
-                    $span = array_merge($styles->run($node, $xp, $paragraphStyle), ['start' => $offset, 'end' => $offset + mb_strlen($part)]);
+                    $span = array_merge($runStyle, ['start' => $offset, 'end' => $offset + mb_strlen($part)]);
                     $last = array_key_last($formatting['runs']);
                     if ($part !== '') {
                         if ($last !== null && $formatting['runs'][$last]['end'] === $offset
@@ -42,6 +44,8 @@ class Docx
                     }
                     $text .= $part; $offset += mb_strlen($part);
                 }
+                // Hidden-only paragraphs must not leave empty blocks or shift formatting offsets.
+                if (!$includeHidden && $text === '' && ($skippedHidden || ($paragraphStyle['attributes']['hidden'] ?? false))) continue;
                 $formatting['paragraphs'][] = array_merge($paragraphStyle, ['start' => $start, 'end' => $offset]);
                 $offset += 2;
                 $paragraphs[] = $text;
@@ -58,6 +62,8 @@ class Docx
         $source = null; $format = ['runs' => [], 'paragraphs' => []];
         if ($sourcePath) {
             $source = $this->import($sourcePath);
+            // Older books retain their immutable baseline, including formerly imported hidden text.
+            if ($source['text'] !== $original) $source = $this->import($sourcePath, true);
             if ($source['text'] !== $original) throw new RuntimeException('invalid_docx');
             $format = $source['formatting'];
         }

@@ -47,6 +47,7 @@ class OoxmlFormatting
             if (!$node instanceof DOMElement || $node->namespaceURI !== self::NS) continue;
             $value = $node->getAttributeNS(self::NS, 'val');
             switch ($node->localName) {
+                case 'vanish': $attrs['hidden'] = !in_array($value, ['0', 'false', 'off']); break;
                 case 'b': $attrs['bold'] = !in_array($value, ['0', 'false', 'off']); break;
                 case 'i': $attrs['italic'] = !in_array($value, ['0', 'false', 'off']); break;
                 case 'u': $attrs['underline'] = !in_array($value, ['none', '0', 'false']); break;

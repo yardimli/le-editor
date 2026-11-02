@@ -17,32 +17,37 @@ class TextEditor
         return implode('', array_slice($matches[0], 0, $limit));
     }
 
-    /** Concatenating chunks must reproduce the source byte for byte. */
+    /** The limit is a soft word target; paragraphs and their short lead-ins stay intact. */
     public function chunks(string $text, int $limit): array
     {
+        $limit = max(1, $limit);
         $parts = preg_split('/(\n\s*\n)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
-        $chunks = [];
-        $buffer = '';
-        foreach ($parts as $part) {
-            if ($this->words($part) > $limit) {
-                if ($buffer !== '') { $chunks[] = $buffer; $buffer = ''; }
-                preg_match_all('/\s*\S+/u', $part, $tokens);
-                foreach (array_chunk($tokens[0], $limit) as $batch) {
-                    $chunks[] = implode('', $batch);
-                }
-                // Preserve trailing whitespace not consumed by the token expression.
-                preg_match('/\s*$/u', $part, $trailing);
-                if ($chunks) { $chunks[array_key_last($chunks)] .= $trailing[0]; }
-            } else {
-                if ($buffer !== '' && $this->words($buffer.$part) > $limit) {
-                    $chunks[] = $buffer; $buffer = '';
-                }
-                $buffer .= $part;
+        $chunks = []; $buffer = ''; $words = 0; $group = ''; $groupWords = 0;
+        for ($i = 0; $i < count($parts); $i += 2) {
+            $paragraph = $parts[$i];
+            $group .= $paragraph.($parts[$i + 1] ?? '');
+            $groupWords += $this->words($paragraph);
+            $trimmed = trim($paragraph);
+            // Plain text has no page width. Treat short, single-line paragraphs as
+            // heading-like lead-ins, including consecutive headings and subtitles.
+            $keepWithNext = $trimmed !== '' && !str_contains($trimmed, "\n")
+                && !str_contains($trimmed, "\r") && mb_strlen($trimmed) <= 120
+                && $this->words($trimmed) <= 16;
+            if ($keepWithNext && $i + 2 < count($parts)) continue;
+            // Close a reasonably full block before the next paragraph group. A small
+            // remainder instead absorbs that group, even when it exceeds the target.
+            if ($words >= $limit * 0.75 && $words + $groupWords > $limit) {
+                $chunks[] = $buffer; $buffer = ''; $words = 0;
+            }
+            $buffer .= $group; $words += $groupWords;
+            $group = ''; $groupWords = 0;
+            if ($words >= $limit) {
+                $chunks[] = $buffer; $buffer = ''; $words = 0;
             }
         }
         if ($buffer !== '') {
-            if (trim($buffer) === '' && $chunks) { $chunks[array_key_last($chunks)] .= $buffer; }
-            else { $chunks[] = $buffer; }
+            if (trim($buffer) === '' && $chunks) $chunks[array_key_last($chunks)] .= $buffer;
+            else $chunks[] = $buffer;
         }
         return $chunks;
     }

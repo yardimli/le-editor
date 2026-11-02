@@ -8,6 +8,24 @@ use Tests\TestCase;
 
 class ChunkReviewTest extends TestCase
 {
+    public function test_soft_chunk_target_keeps_long_paragraphs_and_short_lead_ins_together(): void
+    {
+        $editor = app(TextEditor::class);
+        $short = trim(str_repeat('word ', 212));
+        $long = trim(str_repeat('word ', 1125));
+        $text = $short."\n\n".$long;
+        $this->assertSame([$text], $editor->chunks($text, 1000));
+        $this->assertSame([$long], $editor->chunks($long, 1000));
+
+        $body = str_repeat('word ', 990)."\n\n";
+        $heading = "ÖNYARGILARIMIZ\n\nAlt başlık\n\n";
+        $following = trim(str_repeat('metin ', 200));
+        $this->assertSame([$body, $heading.$following], $editor->chunks($body.$heading.$following, 1000));
+        foreach (["  Başlık\n\n".$long."\n\n  ", "\n\n", '', "Şiir\nbir dize\n\nSon", $body.$heading] as $text) {
+            $this->assertSame($text, implode('', $editor->chunks($text, 1000)));
+        }
+    }
+
     public function test_author_edits_keep_original_and_unrelated_review_decisions(): void
     {
         $segments = [

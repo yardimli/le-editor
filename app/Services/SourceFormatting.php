@@ -11,6 +11,7 @@ class SourceFormatting
         if ($book->original_formatting !== null) return $book->original_formatting;
         if (!Storage::exists($book->original_path)) return [];
         $import = app(Docx::class)->import(Storage::path($book->original_path));
+        if ($import['text'] !== $book->original_text) $import = app(Docx::class)->import(Storage::path($book->original_path), true);
         // Recover formatting for older uploads only when the original text still matches exactly.
         if ($import['text'] !== $book->original_text) return [];
         $book->original_formatting = $import['formatting'];

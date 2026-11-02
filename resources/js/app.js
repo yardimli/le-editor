@@ -11,6 +11,16 @@ const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
 const t = key => window.leStrings?.[key] || key;
 const csrf = $('meta[name="csrf-token"]').content;
+const scrollToTop = $('#scroll-to-top');
+if (scrollToTop) {
+    const updateScrollButton = () => { scrollToTop.hidden = window.scrollY < 300; };
+    window.addEventListener('scroll', updateScrollButton, { passive: true });
+    window.addEventListener('pageshow', updateScrollButton);
+    scrollToTop.addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+    });
+    updateScrollButton();
+}
 async function request(url, method = 'GET', data) {
     const response = await fetch(url, { method, credentials: 'same-origin', headers: {
         Accept: 'application/json', 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf,

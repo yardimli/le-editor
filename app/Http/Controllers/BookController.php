@@ -339,13 +339,14 @@ class BookController extends Controller
             abort_unless(trim($text) !== '', 422, __('editor.empty_manuscript'));
             $locked->versions()->create(['text' => $text, 'italics' => $italics, 'reason' => 'run']);
             $chunks = $editor->chunks($text, $data['chunk_size']);
-            // A pass with the same chunk size preserves chunk identity, original text and edit counts.
+            // Preserve original boundaries and counters only when they match the current splitter.
             $previous = $locked->activeRun?->chunk_size === $data['chunk_size']
                 ? $locked->activeRun->chunks : collect();
             if ($previous->pluck('source')->implode('') !== $locked->original_text) { $previous = collect(); }
             if ($previous->isNotEmpty()) {
-                $chunks = $previous->map(fn ($chunk) => app(ChunkReview::class)->text($chunk->segments
+                $previousInputs = $previous->map(fn ($chunk) => app(ChunkReview::class)->text($chunk->segments
                     ?: $editor->diff($chunk->source, $chunk->input_text ?? $chunk->source), false))->all();
+                if ($previousInputs !== $chunks) $previous = collect();
             }
             $originals = $previous->isNotEmpty() ? $previous->pluck('source')->all()
                 : $editor->originalChunks($locked->original_text, $chunks);
