@@ -34,18 +34,6 @@
             @endauth
         </nav>
     </header>
-    @auth
-    <div class="status-band">
-        <div class="page-shell status-band-inner">
-            @hasSection('status-controls')
-                @yield('status-controls')
-            @else
-                <a href="{{ route('books.index') }}" class="text-xs font-semibold shrink-0">LE EDITOR</a>
-            @endif
-
-        </div>
-    </div>
-    @endauth
     <main class="page-shell">
         @if(session('status'))<div class="notice" role="status">{{ session('status') }}</div>@endif
         @if($errors->any())<div class="notice error" role="alert"><ul>@foreach($errors->all() as $error)<li>{{ $error }}</li>@endforeach</ul></div>@endif

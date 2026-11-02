@@ -119,14 +119,14 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
             });
             span.append(tools); body.append(span);
         });
-        card.querySelector('[data-counts]').textContent = Object.entries(counts).map(([key, value]) => `${t(key)}: ${value}`).join(' · ');
+        card.querySelector('[data-counts]').textContent = Object.entries(counts).map(([key, value]) => `${t(`block_${key}`)}: ${value}`).join(' · ');
     }
     function renderCard(chunk) {
         let card = cards.get(chunk.id);
         if (!card) {
             card = document.createElement('div'); card.className = 'manuscript-sheet chunk-sheet';
             card.dataset.blockId = chunk.id;
-            card.innerHTML = '<div class="manuscript-toolbar flex flex-wrap gap-3 items-center"><strong data-label></strong><span data-status class="hint" role="status"></span><span data-edits class="hint"></span><button type="button" class="button-secondary" data-edit></button><button type="button" class="button-secondary" data-redo></button></div><div data-counts class="flex flex-wrap gap-4 text-xs muted px-4 py-3"></div><div data-review class="manuscript-text"></div><div data-edit-slot></div>';
+            card.innerHTML = '<div class="manuscript-toolbar block-toolbar"><div class="block-summary"><strong data-label></strong><span aria-hidden="true">-</span><span data-edits></span><span data-counts aria-live="polite"></span></div><div class="block-actions"><button type="button" class="button-secondary" data-edit></button><button type="button" class="button-secondary" data-redo></button></div><span data-status class="hint block-status" role="status"></span></div><div data-review class="manuscript-text"></div><div data-edit-slot></div>';
             cards.set(chunk.id, card); $('#book-blocks').append(card);
             card.querySelector('[data-edit]').addEventListener('click', () => editBlock(chunk.id));
             card.querySelector('[data-redo]').addEventListener('click', async () => {
@@ -137,10 +137,10 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
                 finally { busy = false; }
             });
         }
-        card.querySelector('[data-label]').textContent = `${t('chunk')} ${chunk.position + 1}`;
+        card.querySelector('[data-label]').textContent = `#${chunk.position + 1}`;
         card.querySelector('[data-status]').textContent = chunk.review_error ? t(chunk.review_error)
             : chunk.review_requested ? t('block_review_queued') : chunk.status !== 'completed' ? t('chunk_not_processed') : '';
-        card.querySelector('[data-edits]').textContent = `${t('ai_edit_count')}: ${chunk.ai_edit_count || 0}`;
+        card.querySelector('[data-edits]').textContent = `${t('block_edits')}: ${chunk.ai_edit_count || 0},`;
         const active = editing && current?.id === chunk.id;
         card.querySelector('[data-edit]').textContent = t(active ? 'save_and_review' : 'edit_chunk');
         card.querySelector('[data-edit]').setAttribute('aria-pressed', String(active));
@@ -194,8 +194,6 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
     function renderProgress() {
         const run = state?.run, total = state?.chunk_count || 1;
         const completed = run?.completed_chunks || 0, percent = Math.round(completed / total * 100);
-        $('#book-progress').value = percent;
-        $('#book-progress-label').textContent = `${t('processed')}: ${completed} / ${total} · ${percent}%`;
         $('#work-progress').value = percent;
         const running = ['queued', 'running'].includes(run?.status);
         const paused = window.leQueueState?.paused;

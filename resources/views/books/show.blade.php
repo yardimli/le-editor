@@ -1,11 +1,7 @@
 @extends('layouts.editor')
-@section('status-controls')
-<div class="chunk-navigation-progress"><progress id="book-progress" max="100" value="0"></progress><span id="book-progress-label" class="hint"></span></div>
-<div class="status-actions"><button type="button" class="button-secondary" id="open-setup">{{ __('editor.setup_title') }}</button><button type="button" class="button-secondary" id="open-export">{{ __('editor.export') }}</button></div>
-@endsection
 @section('work-controls')
             <div class="work-footer-status"><span id="work-label" role="status">{{ __('editor.no_run') }}</span><progress id="work-progress" max="100" value="0" aria-label="{{ __('editor.editorial_progress') }}"></progress><span id="work-error" class="hint" role="alert"></span></div>
-            <div class="flex gap-2 shrink-0"><button type="button" id="pause-work" class="button-secondary hidden">{{ __('editor.pause') }}</button><button type="button" id="resume-work" class="button hidden">{{ __('editor.resume') }}</button><button type="button" id="restart-work" class="button-secondary hidden">{{ __('editor.restart') }}</button></div>
+            <div class="flex gap-2 shrink-0"><button type="button" class="button-secondary" id="open-setup">{{ __('editor.setup_title') }}</button><button type="button" class="button-secondary" id="open-export">{{ __('editor.export') }}</button><button type="button" id="pause-work" class="button-secondary hidden">{{ __('editor.pause') }}</button><button type="button" id="resume-work" class="button hidden">{{ __('editor.resume') }}</button><button type="button" id="restart-work" class="button-secondary hidden">{{ __('editor.restart') }}</button></div>
 
 @endsection
 @section('content')

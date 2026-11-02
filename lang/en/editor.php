@@ -1,5 +1,9 @@
 <?php
 return [
+    'block_edits' => 'edits',
+    'block_accepted' => 'Accepted',
+    'block_rejected' => 'Rejected',
+    'block_pending' => 'Remaining',
     'save_and_review' => 'Save & return to review',
     'redo_block' => 'Review this block again',
     'block_review_queued' => 'Block review queued',

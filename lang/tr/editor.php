@@ -1,5 +1,9 @@
 <?php
 return [
+    'block_edits' => 'düzenleme',
+    'block_accepted' => 'Kabul',
+    'block_rejected' => 'Ret',
+    'block_pending' => 'Kalan',
     'save_and_review' => 'Kaydet ve incelemeye dön',
     'redo_block' => 'Bu bloğu yeniden incele',
     'block_review_queued' => 'Blok incelemesi sırada',
