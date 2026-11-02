@@ -1,5 +1,9 @@
 <?php
 return [
+    'save_and_review' => 'Save & return to review',
+    'redo_block' => 'Review this block again',
+    'block_review_queued' => 'Block review queued',
+    'block_review_hint' => 'Review only this block using these settings. It runs before the remaining queue, which then continues. Accepted and manual edits are kept; pending suggestions are replaced.',
     'level_light' => 'Light', 'level_medium' => 'Medium', 'level_deep' => 'Deep',
     'library' => 'Your manuscripts', 'presets' => 'Prompt library', 'settings' => 'Settings', 'account' => 'Account',
     'logout' => 'Log out', 'login' => 'Log in', 'register' => 'Create account', 'theme' => 'Change appearance',

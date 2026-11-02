@@ -1,5 +1,9 @@
 <?php
 return [
+    'save_and_review' => 'Kaydet ve incelemeye dön',
+    'redo_block' => 'Bu bloğu yeniden incele',
+    'block_review_queued' => 'Blok incelemesi sırada',
+    'block_review_hint' => 'Bu ayarlarla yalnızca bu blok incelenir. Kalan kuyruktan önce çalışır, ardından kuyruk devam eder. Kabul edilen ve elle yapılan düzenlemeler korunur; bekleyen öneriler değiştirilir.',
     'level_light' => 'Hafif', 'level_medium' => 'Orta', 'level_deep' => 'Kapsamlı',
     'library' => 'Eserlerim', 'presets' => 'Komut kitaplığı', 'settings' => 'Ayarlar', 'account' => 'Hesap',
     'logout' => 'Çıkış yap', 'login' => 'Giriş yap', 'register' => 'Hesap oluştur', 'theme' => 'Görünümü değiştir',

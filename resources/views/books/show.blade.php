@@ -1,12 +1,7 @@
 @extends('layouts.editor')
 @section('status-controls')
-            <nav class="chunk-navigation" aria-label="{{ __('editor.chunk_navigation') }}">
-                <button type="button" class="button-secondary" id="previous-chunk">← {{ __('editor.previous_chunk') }}</button>
-                <div class="chunk-navigation-progress"><progress id="book-progress" max="100" value="0" aria-label="{{ __('editor.processed') }}"></progress><span id="book-progress-label" class="hint"></span></div>
-                <button type="button" id="chunk-position" class="button-secondary" aria-label="{{ __('editor.jump_chunk') }}">1 / 1</button>
-                <button type="button" class="button-secondary" id="next-chunk">{{ __('editor.next_chunk') }} →</button>
-            </nav>
-<div class="status-actions"><button type="button" class="button-secondary" id="toggle-edit" aria-pressed="false">{{ __('editor.edit_chunk') }}</button><button type="button" class="button-secondary" id="open-setup">{{ __('editor.setup_title') }}</button><button type="button" class="button-secondary" id="open-export">{{ __('editor.export') }} ↗</button></div>
+<div class="chunk-navigation-progress"><progress id="book-progress" max="100" value="0"></progress><span id="book-progress-label" class="hint"></span></div>
+<div class="status-actions"><button type="button" class="button-secondary" id="open-setup">{{ __('editor.setup_title') }}</button><button type="button" class="button-secondary" id="open-export">{{ __('editor.export') }}</button></div>
 @endsection
 @section('work-controls')
             <div class="work-footer-status"><span id="work-label" role="status">{{ __('editor.no_run') }}</span><progress id="work-progress" max="100" value="0" aria-label="{{ __('editor.editorial_progress') }}"></progress><span id="work-error" class="hint" role="alert"></span></div>
@@ -18,31 +13,11 @@
     <div class="page-heading editor-heading"><h1 id="book-title">{{ $book->title }}</h1></div>
     <div id="editor-message" class="notice hidden" role="alert"></div>
     <div id="metadata-message" class="notice {{ $book->metadata_status === 'complete' ? 'hidden' : '' }}">{{ __('editor.metadata_'.$book->metadata_status) }}</div>
-    <div>
-        <section class="min-w-0">
-            <div class="manuscript-toolbar">
-                <span id="chunk-edit-count" class="hint"></span>
-            </div>
-            <p id="chunk-unprocessed" class="notice hidden">{{ __('editor.chunk_not_processed') }}</p>
-            <div class="flex flex-wrap gap-4 text-xs muted px-4 py-3" id="review-counts" aria-live="polite"></div>
-            <div class="manuscript-sheet chunk-sheet">
-                <div id="save-indicator" class="save-indicator hidden" role="status"><span>{{ __('editor.saved') }}</span><button type="button" class="underline ml-2 hidden" id="save-now">{{ __('editor.save_now') }}</button></div>
-                <div data-panel="review">
-                    <section><div id="diff-view" class="manuscript-text"></div></section>
-                </div>
-                <div data-panel="edit" class="hidden"><section><h2 class="text-lg mb-3">{{ __('editor.edit_chunk') }}</h2><p class="hint mb-3">{{ __('editor.chunk_edit_hint') }}</p><div id="chunk-editor"></div></section>
-                </div>
-
-            </div>
-        </section>
-    </div>
-    <dialog id="jump-dialog" class="editor-dialog" aria-labelledby="jump-title">
-        <h2 id="jump-title">{{ __('editor.jump_chunk') }}</h2>
-        <form id="jump-form" class="space-y-4 mt-5">
-            <label for="jump-number">{{ __('editor.chunk') }}</label><input id="jump-number" type="number" min="1" required step="1">
-            <div class="dialog-actions"><button class="button">{{ __('editor.go') }}</button><button type="button" class="button-secondary" id="close-jump">{{ __('editor.setup_cancel') }}</button></div>
-        </form>
-    </dialog>
+    <div id="book-blocks" class="space-y-8"></div>
+    <div id="editor-parking" class="hidden"><div id="block-edit-panel" class="hidden">
+        <div id="save-indicator" class="save-indicator hidden" role="status"><span>{{ __('editor.saved') }}</span><button type="button" class="underline ml-2 hidden" id="save-now">{{ __('editor.save_now') }}</button></div>
+        <p class="hint mb-3">{{ __('editor.chunk_edit_hint') }}</p><div id="chunk-editor"></div>
+    </div></div>
     <dialog id="setup-dialog" aria-labelledby="setup-title" aria-describedby="setup-hint" class="editor-dialog setup-dialog">
         <h2 id="setup-title">{{ __('editor.setup_title') }}</h2>
         <p id="setup-hint" class="muted mt-3 mb-6">{{ __('editor.setup_hint') }}</p>
@@ -81,7 +56,7 @@
                     <div><label for="run-model">{{ __('editor.model') }}</label><select id="run-model" name="model" required data-model-select data-current="{{ $book->model }}"><option value="">{{ __('editor.loading_models') }}</option></select><p class="hint model-error" role="alert"></p></div>
                     <input type="hidden" id="chunk-size" value="{{ $book->chunk_size }}">
                     <div id="thinking-control" hidden><label for="thinking-level">{{ __('editor.thinking') }}</label><select id="thinking-level"><option value="low" @selected(($book->activeRun?->reasoning_effort ?? 'low') === 'low')>{{ __('editor.thinking_low') }}</option><option value="medium" @selected(($book->activeRun?->reasoning_effort ?? 'low') === 'medium')>{{ __('editor.thinking_medium') }}</option><option value="high" @selected(($book->activeRun?->reasoning_effort ?? 'low') === 'high')>{{ __('editor.thinking_high') }}</option></select><p class="hint">{{ __('editor.thinking_hint') }}</p></div>
-                    <p class="hint">{{ __('editor.rerun_hint') }}</p>
+                    <p class="hint" id="run-scope-hint">{{ __('editor.rerun_hint') }}</p>
                     <p class="text-sm" id="cost-estimate"></p><p class="hint">{{ __('editor.cost_hint') }}</p>
 
                 </form>

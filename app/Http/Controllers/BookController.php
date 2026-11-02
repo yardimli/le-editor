@@ -94,10 +94,56 @@ class BookController extends Controller
         ]);
     }
 
+    private function ensureBlocks(Book $book, TextEditor $editor): void
+    {
+        DB::transaction(function () use ($book, $editor) {
+            $locked = Book::lockForUpdate()->findOrFail($book->id);
+            if ($locked->active_run_id) return;
+            $parts = $editor->chunks($locked->text, $locked->chunk_size);
+            if (!$parts) $parts = [''];
+            $originals = $editor->originalChunks($locked->original_text, $parts);
+            $run = $locked->runs()->create(['status' => 'cancelled', 'prompt' => $locked->prompt ?? '',
+                'context' => $locked->context, 'model' => $locked->model ?? '', 'language' => $locked->language,
+                'chunk_size' => $locked->chunk_size, 'total_chunks' => count($parts)]);
+            foreach ($parts as $position => $text) {
+                $segments = $editor->diff($originals[$position], $text);
+                foreach ($segments as &$segment) $segment['status'] = 'accepted';
+                unset($segment);
+                $run->chunks()->create(['position' => $position, 'source' => $originals[$position],
+                    'input_text' => $text, 'segments' => $segments]);
+            }
+            $locked->update(['active_run_id' => $run->id]);
+        });
+        $book->refresh();
+    }
+
+    public function reviewChunk(Request $request, Book $book, Chunk $chunk, OpenRouter $api)
+    {
+        $this->owner($book);
+        $data = $request->validate(['revision' => 'required|integer|min:1', 'prompt' => 'required|string|max:10000',
+            'context' => 'nullable|string|max:10000', 'model' => 'required|string|max:255',
+            'reasoning_effort' => 'required|in:low,medium,high', 'italicize' => 'required|boolean']);
+        try { $api->key($request->user()); $api->model($data['model']); }
+        catch (\Throwable $e) { throw ValidationException::withMessages(['model' => __('editor.model_unavailable')]); }
+        DB::transaction(function () use ($book, $chunk, $data) {
+            // Fence any in-flight response before replacing this block's review.
+            $user = \App\Models\User::lockForUpdate()->findOrFail($book->user_id);
+            $locked = Book::lockForUpdate()->findOrFail($book->id);
+            abort_unless($chunk->editing_run_id === $locked->active_run_id, 404);
+            $chunk = Chunk::lockForUpdate()->findOrFail($chunk->id);
+            abort_unless($chunk->revision === $data['revision'], 409, __('editor.save_conflict'));
+            $settings = $data; unset($settings['revision']);
+            $chunk->update(['review_settings' => $settings, 'review_error' => null, 'revision' => $chunk->revision + 1]);
+            $user->forceFill(['llm_paused' => false, 'llm_lease' => null, 'llm_lease_until' => null])->save();
+        });
+        return response()->json(['ok' => true]);
+    }
+
     public function state(Request $request, Book $book, TextEditor $editor)
     {
         $this->owner($book);
         $request->validate(['chunk' => 'nullable|integer|min:1', 'known_book' => 'nullable|string|max:64', 'known_run' => 'nullable|string|max:64', 'known_chunk' => 'nullable|string|max:64']);
+        if ($request->boolean('all') && !$book->active_run_id) $this->ensureBlocks($book, $editor);
         $run = $book->activeRun;
         $number = max(1, min($request->integer('chunk', 1), $run?->total_chunks ?? PHP_INT_MAX));
         if ($run) {
@@ -142,13 +188,31 @@ class BookController extends Controller
         if ($request->query('known_book') !== $bookToken) $response += $metadata;
         if ($request->query('known_run') !== $runToken) $response += $progress;
         if ($sendChunk) $response['chunk'] = $this->chunkPayload($chunk);
+        if ($request->boolean('all')) {
+            $chunks = $run->chunks()->get();
+            $token = hash('sha256', $chunks->map(fn ($c) => [$c->id, $c->revision, $c->status, $c->review_settings, $c->review_error])->toJson());
+            $response['tokens']['chunks'] = $token;
+            if ($request->query('known_chunks') !== $token) {
+                $styles = app(\App\Services\SourceFormatting::class);
+                $format = $styles->forBook($book);
+                $slice = $styles->slicer($format['runs'] ?? []);
+                $offset = 0;
+                $response['chunks'] = $chunks->map(function ($c) use ($styles, $slice, &$offset, $editor) {
+                    $length = mb_strlen($c->source);
+                    $c->segments = $styles->annotate($c->segments ?? $editor->diff($c->source, $c->input_text ?? $c->source), $slice($offset, $length));
+                    $offset += $length;
+                    return $this->chunkPayload($c);
+                });
+            }
+        }
         return response()->json($response)->header('Cache-Control', 'private, no-store');
     }
 
     private function chunkPayload($chunk): ?array
     {
         if (!$chunk) return null;
-        $data = $chunk instanceof Chunk ? $chunk->only(['id', 'position', 'status', 'revision', 'ai_edit_count', 'segments']) : $chunk;
+        $data = $chunk instanceof Chunk ? $chunk->only(['id', 'position', 'status', 'revision', 'ai_edit_count', 'segments', 'review_error']) : $chunk;
+        if ($chunk instanceof Chunk) $data['review_requested'] = (bool) $chunk->review_settings;
         // The browser needs display attributes, not raw Word XML or loaded Eloquent relationships.
         $data['segments'] = array_map(function ($segment) {
             foreach (['styles', 'before_styles'] as $key) {
@@ -170,7 +234,7 @@ class BookController extends Controller
             $locked = Book::lockForUpdate()->findOrFail($book->id);
             abort_unless($chunk->editing_run_id === $locked->active_run_id, 404);
             $chunk = Chunk::lockForUpdate()->findOrFail($chunk->id);
-            abort_unless($chunk->status === 'completed', 409, __('editor.chunk_not_processed'));
+            abort_if($chunk->review_settings && !$chunk->review_error, 409, __('editor.busy'));
             abort_unless($chunk->revision === $data['revision'], 409, __('editor.save_conflict'));
             try {
                 $styles = app(\App\Services\SourceFormatting::class);
@@ -195,7 +259,7 @@ class BookController extends Controller
             if ($segments !== $chunk->segments) {
                 DB::table('chunk_revisions')->insert(['chunk_id' => $chunk->id,
                     'text' => $review->text($chunk->segments), 'created_at' => now(), 'updated_at' => now()]);
-                $chunk->update(['segments' => $segments, 'revision' => $chunk->revision + 1]);
+                $chunk->update(['segments' => $segments, 'input_text' => $data['text'], 'revision' => $chunk->revision + 1]);
                 $locked->increment('version');
             }
             $chunk->segments = app(\App\Services\SourceFormatting::class)->chunk($locked, $chunk);
@@ -259,7 +323,7 @@ class BookController extends Controller
                 // Keep chunk identities, reviews and manual edits. Only future API calls use the new settings.
                 $pending = $existing->chunks()->where('status', '!=', 'completed')->count();
                 abort_unless($pending > 0, 422, __('editor.no_unfinished_chunks'));
-                $existing->chunks()->where('status', '!=', 'completed')->update(['status' => 'pending']);
+                $existing->chunks()->where('status', '!=', 'completed')->update(['status' => 'pending', 'review_settings' => null, 'review_error' => null]);
                 $existing->update([
                     'prompt' => $locked->prompt, 'context' => $locked->context,
                     'language' => $locked->language, 'italicize' => $locked->italicize,

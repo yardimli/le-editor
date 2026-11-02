@@ -72,6 +72,14 @@ class BrowserQueue
     private function next(int $userId): ?array
     {
         $books = Book::where('user_id', $userId);
+        $priority = \App\Models\Chunk::whereIn('editing_run_id', (clone $books)->select('active_run_id'))
+            ->whereNotNull('review_settings')->whereNull('review_error')->orderBy('updated_at')->orderBy('id')->first();
+        if ($priority) {
+            $run = $priority->run;
+            return ['kind' => 'editing', 'book_id' => $run->book_id, 'title' => $run->book->title,
+                'run_id' => $run->id, 'chunk_id' => $priority->id,
+                'completed' => $run->completed_chunks, 'total' => $run->total_chunks];
+        }
         if ($book = (clone $books)->where('metadata_status', 'pending')->orderBy('id')->first()) {
             return ['kind' => 'metadata', 'book_id' => $book->id, 'title' => $book->title];
         }
@@ -108,7 +116,7 @@ class BrowserQueue
             if ($task) {
                 $job = match ($task['kind']) {
                     'metadata' => new InferBookMetadata($task['book_id'], $token),
-                    'editing' => new EditChunk($task['run_id'], $token),
+                    'editing' => new EditChunk($task['run_id'], $token, $task['chunk_id'] ?? null),
                     'learning' => new LearnPrompt($task['book_id'], $token),
                 };
                 app()->call([$job, 'handle']);

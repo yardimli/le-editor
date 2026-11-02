@@ -19,29 +19,43 @@ class EditChunk implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
     public $tries = 3;
     public $timeout = 240;
-    public function __construct(public int $runId, public ?string $token = null) {}
+    public function __construct(public int $runId, public ?string $token = null, public ?int $chunkId = null) {}
     public function middleware(): array { return [(new WithoutOverlapping('run-'.$this->runId))->releaseAfter(15)->expireAfter(270)]; }
 
     public function handle(OpenRouter $api, TextEditor $editor): void
     {
         $run = EditingRun::find($this->runId);
-        if (!($this->token ?? null) || !$run || !$run->isActive()) { return; }
-        $chunk = $run->chunks()->where('status', 'pending')->first();
+        if (!$this->token || !$run || (!$this->chunkId && !$run->isActive())) return;
+        $chunk = $this->chunkId ? $run->chunks()->find($this->chunkId)
+            : $run->chunks()->where('status', 'pending')->whereNull('review_settings')->whereNull('review_error')->first();
+        if ($this->chunkId && (!$chunk?->review_settings || $chunk->review_error)) return;
         if (!app(BrowserQueue::class)->commit($run->book->user_id, $this->token, function () use ($run, $chunk) {
-            $run->update(['status' => $chunk ? 'running' : 'completed']);
+            if (!$this->chunkId) $run->update(['status' => $chunk ? 'running' : ($run->completed_chunks === $run->total_chunks ? 'completed' : 'failed')]);
             return (bool) $chunk;
-        })) { return; }
+        })) return;
         $chunk->segments = app(\App\Services\SourceFormatting::class)->chunk($run->book, $chunk);
         $input = $chunk->input_text ?? $chunk->source;
+        if ($this->chunkId) {
+            foreach ($chunk->review_settings as $key => $value) $run->$key = $value;
+            $input = app(\App\Services\ChunkReview::class)->text($chunk->segments, false);
+            $italics = app(\App\Services\Italics::class);
+            $ranges = $italics->ranges($chunk->segments, false);
+            $segments = $editor->diff($chunk->source, $input);
+            foreach ($segments as &$segment) $segment['status'] = 'accepted';
+            unset($segment);
+            $chunk->segments = $italics->apply($segments, $ranges);
+        }
         if (trim($input) === '') {
             // An author may delete a whole chunk. There is nothing to send to the model.
             app(BrowserQueue::class)->commit($run->book->user_id, $this->token, function () use ($chunk) {
                 $locked = EditingRun::lockForUpdate()->find($this->runId);
+                if ($locked && $locked->book->active_run_id !== $locked->id) return;
                 $current = \App\Models\Chunk::lockForUpdate()->find($chunk->id);
-                if (!$locked?->isActive() || !$current || $current->status !== 'pending') { return; }
-                $current->update(['status' => 'completed', 'revision' => $current->revision + 1]);
-                $locked->completed_chunks++;
-                $locked->status = $locked->completed_chunks === $locked->total_chunks ? 'completed' : 'running';
+                if (!$locked || (!$this->chunkId && !$locked->isActive()) || !$current || $current->revision !== $chunk->revision) return;
+                $wasCompleted = $current->status === 'completed';
+                $current->update(['segments' => $chunk->segments, 'status' => 'completed', 'review_settings' => null, 'review_error' => null, 'revision' => $current->revision + 1]);
+                if (!$wasCompleted) $locked->completed_chunks++;
+                $locked->status = $locked->completed_chunks === $locked->total_chunks ? 'completed' : ($locked->isActive() ? 'running' : $locked->status);
                 $locked->save();
             });
             return;
@@ -79,20 +93,29 @@ class EditChunk implements ShouldQueue
             $segments = app(\App\Services\ParagraphSpacing::class)->reject($segments);
             app(BrowserQueue::class)->commit($run->book->user_id, $this->token, function () use ($chunk, $output, $segments, $result) {
                 $locked = EditingRun::lockForUpdate()->find($this->runId);
-                if (!$locked || !$locked->isActive()) { return; }
+                if (!$locked || (!$this->chunkId && !$locked->isActive())) return;
+                if ($locked && $locked->book->active_run_id !== $locked->id) return;
                 $current = \App\Models\Chunk::lockForUpdate()->find($chunk->id);
-                if (!$current || $current->status !== 'pending' || $current->revision !== $chunk->revision) { return; }
+                if (!$current || (!$this->chunkId && $current->status !== 'pending') || $current->revision !== $chunk->revision) return;
+                $wasCompleted = $current->status === 'completed';
                 $current->update(['output' => $output, 'segments' => $segments, 'status' => 'completed',
-                    'ai_edit_count' => $current->ai_edit_count + 1, 'revision' => $current->revision + 1]);
-                $locked->completed_chunks++;
+                    'review_settings' => null, 'review_error' => null, 'ai_edit_count' => $current->ai_edit_count + 1, 'revision' => $current->revision + 1]);
+                if (!$wasCompleted) $locked->completed_chunks++;
                 $locked->tokens += $result['tokens'];
                 $locked->cost += $result['cost'];
-                $locked->status = $locked->completed_chunks === $locked->total_chunks ? 'completed' : 'running';
+                $locked->status = $locked->completed_chunks === $locked->total_chunks ? 'completed' : ($locked->isActive() ? 'running' : $locked->status);
                 $locked->save();
             });
         } catch (\Throwable $e) {
             $known = ['api_key_required', 'api_key_invalid', 'insufficient_credits', 'rate_limited', 'provider_error',
                 'empty_output', 'incomplete_output', 'chunk_too_large', 'suspicious_output', 'model_unavailable', 'catalog_unavailable'];
+            if ($this->chunkId) {
+                app(BrowserQueue::class)->commit($run->book->user_id, $this->token, fn () => \App\Models\Chunk::whereKey($chunk->id)->where('revision', $chunk->revision)->update([
+                    'review_error' => in_array($e->getMessage(), $known) ? $e->getMessage() : 'provider_error',
+                    'revision' => $chunk->revision + 1,
+                ]));
+                return;
+            }
             app(BrowserQueue::class)->commit($run->book->user_id, $this->token, fn () => EditingRun::whereKey($this->runId)->whereIn('status', ['queued', 'running'])->update([
                 'status' => 'failed', 'error' => in_array($e->getMessage(), $known) ? $e->getMessage() : 'provider_error',
             ]));

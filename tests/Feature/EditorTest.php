@@ -535,7 +535,9 @@ class EditorTest extends TestCase
         $this->assertSame('pending', $pending->fresh()->status);
         $this->assertDatabaseCount('chunk_revisions', 1);
         $this->putJson("/books/{$book->id}/chunks/{$chunk->id}/text", ['text' => 'stale', 'revision' => 1])->assertConflict();
-        $this->putJson("/books/{$book->id}/chunks/{$pending->id}/text", ['text' => 'early', 'revision' => 1])->assertConflict();
+        $this->putJson("/books/{$book->id}/chunks/{$pending->id}/text", ['text' => 'early', 'revision' => 1])->assertOk();
+        $this->assertSame('early', $pending->fresh()->input_text);
+        $this->assertSame('pending', $pending->fresh()->status);
         $chunk->refresh();
         $index = collect($chunk->segments)->search(fn ($s) => $s['status'] === 'pending' && $s['type'] === 'change');
         $this->assertNotFalse($index);
@@ -544,6 +546,96 @@ class EditorTest extends TestCase
         ])->assertOk();
         $this->assertSame('running', $run->fresh()->status);
         $this->assertSame($run->id, $book->fresh()->active_run_id);
+    }
+
+    public function test_all_blocks_load_and_unprocessed_blocks_can_be_edited(): void
+    {
+        $book = $this->book();
+        $book->update(['text' => str_repeat("One word. ", 250), 'original_text' => str_repeat("One word. ", 250), 'chunk_size' => 100]);
+        $response = $this->actingAs($book->user)->getJson("/books/{$book->id}/state?all=1")->assertOk();
+        $chunks = $response->json('chunks');
+        $this->assertGreaterThan(1, count($chunks));
+        $this->assertSame('cancelled', $response->json('run.status'));
+        $this->assertSame($book->text, implode('', array_map(fn ($c) => app(\App\Services\ChunkReview::class)->text($c['segments']), $chunks)));
+        $this->getJson("/books/{$book->id}/state?all=1&known_chunks=".$response->json('tokens.chunks'))->assertJsonMissingPath('chunks');
+        $chunk = $chunks[1];
+        $this->putJson("/books/{$book->id}/chunks/{$chunk['id']}/text", ['text' => 'Manually edited.', 'revision' => $chunk['revision']])->assertOk();
+        $this->getJson("/books/{$book->id}/state?all=1")->assertJsonPath('chunks.1.status', 'pending');
+        $this->actingAs(User::factory()->create())->getJson("/books/{$book->id}/state?all=1")->assertNotFound();
+    }
+
+    public function test_single_block_review_preempts_queue_then_resumes_without_changing_run_settings(): void
+    {
+        $this->catalog();
+        $book = $this->book(); $book->user->update(['openrouter_api_key' => 'secret']);
+        $run = $this->runWithChanges($book);
+        $run->update(['status' => 'running', 'total_chunks' => 2]);
+        $pending = $run->chunks()->create(['position' => 1, 'source' => 'Next sentence.']);
+        $chunk = $run->chunks()->first();
+        $queue = app(BrowserQueue::class);
+        $oldToken = $queue->claim($book->user_id);
+        $settings = ['prompt' => 'Only fix this block.', 'context' => '', 'italicize' => false,
+            'model' => 'test/paid', 'reasoning_effort' => 'low', 'revision' => $chunk->revision];
+        $this->actingAs($book->user)->postJson("/books/{$book->id}/chunks/{$chunk->id}/review", $settings)->assertOk();
+        $this->assertNull($queue->commit($book->user_id, $oldToken, fn () => true));
+        $this->assertSame($chunk->id, $queue->state($book->user_id)['task']['chunk_id']);
+        $this->postJson("/books/{$book->id}/chunks/{$chunk->id}/review", $settings)->assertConflict();
+        Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => "Old sentence.\n\nAnother paragraph."]]], 'usage' => ['total_tokens' => 10]])]);
+        $queue->step($book->user_id);
+        $this->assertNull($chunk->fresh()->review_error);
+        $this->assertNull($chunk->fresh()->review_settings);
+        $this->assertSame(1, $run->fresh()->completed_chunks);
+        $this->assertSame($run->prompt, $run->fresh()->prompt);
+        $this->assertSame('pending', $pending->fresh()->status);
+        $this->assertArrayNotHasKey('chunk_id', $queue->state($book->user_id)['task']);
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'chat/completions') && str_contains($request['messages'][0]['content'], 'Only fix this block.'));
+        $queue->step($book->user_id);
+        $this->assertSame('completed', $pending->fresh()->status);
+        $this->assertSame('completed', $run->fresh()->status);
+        $this->actingAs(User::factory()->create())->postJson("/books/{$book->id}/chunks/{$chunk->id}/review", $settings)->assertNotFound();
+    }
+
+    public function test_failed_block_review_keeps_existing_review_and_allows_queue_to_continue(): void
+    {
+        $this->catalog();
+        $book = $this->book(); $book->user->update(['openrouter_api_key' => 'secret']);
+        $run = $this->runWithChanges($book); $run->update(['status' => 'running', 'total_chunks' => 2]);
+        $pending = $run->chunks()->create(['position' => 1, 'source' => 'Next sentence.']);
+        $chunk = $run->chunks()->first(); $original = $chunk->segments;
+        $settings = ['prompt' => 'Review only this.', 'context' => '', 'italicize' => false,
+            'model' => 'test/paid', 'reasoning_effort' => 'low', 'revision' => $chunk->revision];
+        $this->actingAs($book->user)->postJson("/books/{$book->id}/chunks/{$chunk->id}/review", $settings)->assertOk();
+        Http::fake(['*/chat/completions' => Http::response([], 500)]);
+        $queue = app(BrowserQueue::class); $queue->step($book->user_id);
+        $this->assertNotNull($chunk->fresh()->review_error);
+        $this->assertSame($original, $chunk->fresh()->segments);
+        $this->assertSame('running', $run->fresh()->status);
+        $this->assertArrayNotHasKey('chunk_id', $queue->state($book->user_id)['task']);
+        $settings['revision'] = $chunk->fresh()->revision;
+        $this->postJson("/books/{$book->id}/chunks/{$chunk->id}/review", $settings)->assertOk();
+        $this->assertSame($chunk->id, $queue->state($book->user_id)['task']['chunk_id']);
+        $this->assertNull($chunk->fresh()->review_error);
+    }
+
+    public function test_single_unprocessed_block_review_does_not_start_other_paused_blocks(): void
+    {
+        $this->catalog();
+        $book = $this->book(); $book->user->update(['openrouter_api_key' => 'secret']);
+        $run = $this->runWithChanges($book); $run->update(['status' => 'cancelled', 'total_chunks' => 3]);
+        $target = $run->chunks()->create(['position' => 1, 'source' => 'Target sentence.']);
+        $other = $run->chunks()->create(['position' => 2, 'source' => 'Other sentence.']);
+        $this->actingAs($book->user)->postJson("/books/{$book->id}/chunks/{$target->id}/review", [
+            'prompt' => 'Review only this.', 'context' => '', 'italicize' => false,
+            'model' => 'test/paid', 'reasoning_effort' => 'low', 'revision' => $target->fresh()->revision,
+        ])->assertOk();
+        Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop',
+            'message' => ['content' => 'Target sentence.']]], 'usage' => ['total_tokens' => 10]])]);
+        app(BrowserQueue::class)->step($book->user_id);
+        $this->assertSame('completed', $target->fresh()->status);
+        $this->assertSame('pending', $other->fresh()->status);
+        $this->assertSame('cancelled', $run->fresh()->status);
+        $this->assertSame(2, $run->fresh()->completed_chunks);
+        $this->assertNull(app(BrowserQueue::class)->state($book->user_id)['task']);
     }
 
     public function test_state_returns_only_requested_chunk_and_counts_processed_chunks(): void

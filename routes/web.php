@@ -36,6 +36,7 @@ Route::middleware('auth')->group(function () {
     Route::patch('/books/{book}/details', [BookController::class, 'details'])->name('books.details');
     Route::get('/books/{book}/original', [BookController::class, 'originalDownload'])->name('books.original');
     Route::patch('/books/{book}', [BookController::class, 'update'])->name('books.update');
+    Route::post('/books/{book}/chunks/{chunk}/review', [BookController::class, 'reviewChunk'])->middleware('throttle:10,1');
     Route::put('/books/{book}/chunks/{chunk}/text', [BookController::class, 'saveChunk']);
     Route::post('/books/{book}/learning/dismiss', [BookController::class, 'dismissLearning']);
     Route::put('/books/{book}/text', [BookController::class, 'save'])->name('books.text');

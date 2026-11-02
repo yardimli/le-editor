@@ -1,10 +1,9 @@
 import { sliceStyles } from './source-styles.js';
-import { chunkStyles, annotateStyles } from './source-styles';
-import { italicRanges, applyItalics, italicOps, readItalics, appendFormatted, sliceRanges } from './italics';
-import { draftSegments } from './draft-review';
+import { chunkStyles } from './source-styles';
+import { italicRanges, italicOps, readItalics, appendFormatted, sliceRanges } from './italics';
 import Quill from 'quill';
 import 'quill/dist/quill.snow.css';
-import { chunkText, changeKey, boundedChunk } from './chunk-text';
+import { chunkText, changeKey } from './chunk-text';
 
 const FontStyle = Quill.import('attributors/style/font'); FontStyle.whitelist = null; Quill.register(FontStyle, true);
 const SizeStyle = Quill.import('attributors/style/size'); SizeStyle.whitelist = null; Quill.register(SizeStyle, true);
@@ -21,8 +20,8 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
     let dirty = false, saving = null, deadline = 0, polling = null, signature = '', focusedChange = -1;
     let stateTokens = {};
     let savedUntil = 0, editing = false;
-    let number = 1;
-    try { number = Math.max(1, Number(sessionStorage.getItem(`le-chunk-${book.id}`)) || 1); } catch {}
+    const blocks = new Map(), cards = new Map();
+    let reviewTarget = null;
     const text = () => quill.getText().slice(0, -1);
     const formats = () => readItalics(quill.getContents().ops, Array.from(text()).length);
     const matches = chunk => text() === chunkText(chunk) && JSON.stringify(formats()) === JSON.stringify(italicRanges(chunk?.segments));
@@ -39,7 +38,7 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
     function estimate() {
         const model = getModels().find(m => m.id === $('#run-model').value);
         if (!model) return;
-        const words = state?.word_count || 0, tokens = Math.ceil(words * 2);
+        const words = reviewTarget ? chunkText(blocks.get(reviewTarget)).split(/\s+/).length : state?.word_count || 0, tokens = Math.ceil(words * 2);
         const chunks = Math.max(1, Math.ceil(words / Number($('#chunk-size').value || 1000)));
         const level = $('#thinking-level').value;
         const ratio = {low: .5, medium: 1, high: 2}[level];
@@ -61,14 +60,13 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
             quill.history.clear();
             if (!switched && selection) quill.setSelection(Math.min(selection.index, quill.getLength() - 1), 0, 'silent');
         }
-        quill.enable(chunk.status === 'completed' && !!chunk.id);
-        $('#chunk-unprocessed').classList.toggle('hidden', chunk.status === 'completed');
-        $('#chunk-edit-count').textContent = `${t('ai_edit_count')}: ${chunk.ai_edit_count || 0}`;
-        renderDiff(chunk);
+        quill.enable(!!chunk.id && (!chunk.review_requested || !!chunk.review_error));
+        blocks.set(chunk.id, chunk); renderCard(chunk);
         indicator();
     }
     function renderDiff(chunk) {
-        const view = $('#diff-view'); view.replaceChildren();
+        const card = cards.get(chunk.id);
+        const view = card.querySelector('[data-review]'); view.replaceChildren();
         const counts = { accepted: 0, rejected: 0, pending: 0 };
         const container = document.createElement('div'); container.className = 'review-paragraphs'; view.append(container);
         let body;
@@ -102,7 +100,8 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
                     if (busy) return;
                     busy = true; button.disabled = true;
                     try {
-                        await save();
+                        await finishEditing();
+                        showChunk(blocks.get(chunk.id), true);
                         // Manual edits can split suggestions. Never apply a stale numeric index.
                         const freshIndex = current.segments.findIndex((_, i) => changeKey(current.segments, i) === stableKey);
                         if (freshIndex < 0) { message(t('suggestion_changed')); return; }
@@ -120,14 +119,81 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
             });
             span.append(tools); body.append(span);
         });
-        $('#review-counts').textContent = Object.entries(counts).map(([key, value]) => `${t(key)}: ${value}`).join(' · ');
+        card.querySelector('[data-counts]').textContent = Object.entries(counts).map(([key, value]) => `${t(key)}: ${value}`).join(' · ');
+    }
+    function renderCard(chunk) {
+        let card = cards.get(chunk.id);
+        if (!card) {
+            card = document.createElement('div'); card.className = 'manuscript-sheet chunk-sheet';
+            card.dataset.blockId = chunk.id;
+            card.innerHTML = '<div class="manuscript-toolbar flex flex-wrap gap-3 items-center"><strong data-label></strong><span data-status class="hint" role="status"></span><span data-edits class="hint"></span><button type="button" class="button-secondary" data-edit></button><button type="button" class="button-secondary" data-redo></button></div><div data-counts class="flex flex-wrap gap-4 text-xs muted px-4 py-3"></div><div data-review class="manuscript-text"></div><div data-edit-slot></div>';
+            cards.set(chunk.id, card); $('#book-blocks').append(card);
+            card.querySelector('[data-edit]').addEventListener('click', () => editBlock(chunk.id));
+            card.querySelector('[data-redo]').addEventListener('click', async () => {
+                if (busy) return;
+                busy = true;
+                try { await finishEditing(); reviewTarget = chunk.id; configureSetup(); setup.showModal(); }
+                catch (error) { message(error.message, true); }
+                finally { busy = false; }
+            });
+        }
+        card.querySelector('[data-label]').textContent = `${t('chunk')} ${chunk.position + 1}`;
+        card.querySelector('[data-status]').textContent = chunk.review_error ? t(chunk.review_error)
+            : chunk.review_requested ? t('block_review_queued') : chunk.status !== 'completed' ? t('chunk_not_processed') : '';
+        card.querySelector('[data-edits]').textContent = `${t('ai_edit_count')}: ${chunk.ai_edit_count || 0}`;
+        const active = editing && current?.id === chunk.id;
+        card.querySelector('[data-edit]').textContent = t(active ? 'save_and_review' : 'edit_chunk');
+        card.querySelector('[data-edit]').setAttribute('aria-pressed', String(active));
+        card.querySelector('[data-edit]').disabled = chunk.review_requested && !chunk.review_error;
+        card.querySelector('[data-redo]').textContent = t('redo_block');
+        card.querySelector('[data-redo]').disabled = chunk.review_requested && !chunk.review_error;
+        card.querySelector('[data-review]').classList.toggle('hidden', active);
+        renderDiff(chunk);
+    }
+    function renderBlocks(chunks) {
+        const ids = new Set(chunks.map(c => c.id));
+        for (const [id, card] of cards) if (!ids.has(id)) {
+            if (editing && current?.id === id) { message(t('save_conflict'), true); return; }
+            card.remove(); cards.delete(id); blocks.delete(id);
+        }
+        for (const chunk of chunks) {
+            if (editing && current?.id === chunk.id) { delete stateTokens.chunks; continue; }
+            const old = blocks.get(chunk.id);
+            blocks.set(chunk.id, chunk);
+            if (!old || old.revision !== chunk.revision || old.status !== chunk.status || old.review_requested !== chunk.review_requested || old.review_error !== chunk.review_error) renderCard(chunk);
+        }
+    }
+    async function finishEditing() {
+        await save();
+        while (dirty) await save();
+        if (!editing) return;
+        const previous = current; editing = false;
+        $('#block-edit-panel').classList.add('hidden');
+        $('#editor-parking').append($('#block-edit-panel'));
+        if (previous) renderCard(previous);
+    }
+    async function editBlock(id) {
+        if (busy) return;
+        busy = true;
+        try {
+            const wasEditing = editing && current?.id === id;
+            await finishEditing();
+            if (wasEditing) return;
+            showChunk(blocks.get(id), true); editing = true;
+            cards.get(id).querySelector('[data-edit-slot]').append($('#block-edit-panel'));
+            $('#block-edit-panel').classList.remove('hidden');
+            renderCard(current); quill.focus();
+        } catch (error) { message(error.message, true); }
+        finally { busy = false; }
+    }
+    function configureSetup() {
+        $('#setup-hint').textContent = t(reviewTarget ? 'block_review_hint' : 'setup_hint');
+        $('#run-scope-hint').textContent = t(reviewTarget ? 'block_review_hint' : 'rerun_hint');
+        $('#run-button').textContent = t(reviewTarget ? 'redo_block' : 'run'); estimate();
     }
     function renderProgress() {
         const run = state?.run, total = state?.chunk_count || 1;
         const completed = run?.completed_chunks || 0, percent = Math.round(completed / total * 100);
-        $('#chunk-position').textContent = `${number} / ${total}`;
-        $('#previous-chunk').disabled = number <= 1;
-        $('#next-chunk').disabled = number >= total;
         $('#book-progress').value = percent;
         $('#book-progress-label').textContent = `${t('processed')}: ${completed} / ${total} · ${percent}%`;
         $('#work-progress').value = percent;
@@ -147,15 +213,13 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
     }
     async function refresh(force = false) {
         if (polling) { if (!force) return polling; await polling; }
-        const wanted = number;
-        const query = new URLSearchParams({chunk: wanted, ...Object.fromEntries(Object.entries(stateTokens).map(([key, value]) => [`known_${key}`, value]))});
+        const query = new URLSearchParams({all: 1, ...Object.fromEntries(Object.entries(stateTokens).map(([key, value]) => [`known_${key}`, value]))});
         polling = request(`${base}/state?${query}`).then(update => {
-            if (wanted !== number || (update.version !== undefined && update.version < book.version)) return update.queue;
+            if (update.version !== undefined && update.version < book.version) return update.queue;
             stateTokens = update.tokens;
             const next = {...state, ...update};
             state = next; book.version = next.version;
             window.leQueueState = update.queue;
-            number = boundedChunk(next.chunk.position + 1, next.chunk_count);
             if (!settingsDirty) {
                 $$('[name=editorial_genre]').forEach(radio => { radio.checked = radio.value === next.editorial_genre; });
                 $('#book-prompt').value = next.prompt || ''; book.promptVersion = next.prompt_version;
@@ -170,7 +234,7 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
             $('#learning-status').textContent = `${t('learning_awaiting')}: ${next.learning_awaiting} · ${t('learning_failed')}: ${next.learning_failed}`;
             $('#retry-learning').classList.toggle('hidden', !next.learning_awaiting && !next.learning_failed);
             $('#editor-learning-hint').classList.toggle('hidden', !next.learning_hint);
-            renderProgress(); if (update.chunk) showChunk(update.chunk); estimate();
+            renderProgress(); if (update.chunks) renderBlocks(update.chunks); estimate();
             return update.queue;
         }).catch(error => { message(error.message, true); throw error; }).finally(() => { polling = null; });
         return polling;
@@ -200,27 +264,6 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
         if (dirty && deadline && Date.now() >= deadline && !saving && !busy) save().catch(() => {});
     }, 250);
     $('#save-now').addEventListener('click', () => save().catch(() => {}));
-    async function go(value) {
-        if (busy) return;
-        busy = true;
-        try {
-            await save();
-            number = boundedChunk(value, state?.chunk_count || 1);
-            try { sessionStorage.setItem(`le-chunk-${book.id}`, number); } catch {}
-            $('#jump-dialog').close();
-            await refresh(true);
-            $('#chunk-position').focus();
-        } catch (error) { message(error.message, true); }
-        finally { busy = false; }
-    }
-    $('#previous-chunk').addEventListener('click', () => go(number - 1));
-    $('#next-chunk').addEventListener('click', () => go(number + 1));
-    $('#chunk-position').addEventListener('click', () => {
-        $('#jump-number').max = state?.chunk_count || 1; $('#jump-number').value = number;
-        $('#jump-dialog').showModal(); $('#jump-number').select();
-    });
-    $('#jump-form').addEventListener('submit', event => { event.preventDefault(); go($('#jump-number').value); });
-    $('#close-jump').addEventListener('click', () => $('#jump-dialog').close());
     $('#pause-work').addEventListener('click', () => $('#queue-cancel').click());
     $('#resume-work').addEventListener('click', async event => {
         event.target.disabled = true;
@@ -230,7 +273,7 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
         } catch (error) { message(error.message, true); }
         finally { event.target.disabled = false; }
     });
-    function openSetup() { if (!busy) setup.showModal(); }
+    function openSetup() { if (!busy) { reviewTarget = null; configureSetup(); setup.showModal(); } }
     $('#restart-work').addEventListener('click', openSetup);
     $('#open-setup').addEventListener('click', openSetup);
     $('#cancel-setup').addEventListener('click', () => { if (!busy) setup.close(); });
@@ -315,17 +358,26 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
         busy = true; $('#run-button').disabled = true; $('#cancel-setup').disabled = true;
         $('.setup-grid', setup).inert = true; $('#setup-error').classList.add('hidden');
         try {
-            const scope = await chooseRunScope();
+            const scope = reviewTarget ? 'block' : await chooseRunScope();
             if (scope === 'cancel') return;
             if (!await confirmModelChoice()) return;
-            await save();
+            await finishEditing();
             const data = Object.fromEntries(new FormData(settings));
             data.italicize = $$('.preset-checkbox:checked').some(box => box.dataset.presetKey === 'italics');
             data.learn = true; data.prompt_version = book.promptVersion;
-            const saved = await request(base, 'PATCH', data);
-            book.promptVersion = saved.prompt_version; settingsDirty = false;
-            await request(`${base}/run`, 'POST', { scope, model: $('#run-model').value,
-                reasoning_effort: $('#thinking-level').value, chunk_size: Number($('#chunk-size').value), version: book.version });
+            if (reviewTarget) {
+                await request(`${base}/chunks/${reviewTarget}/review`, 'POST', {
+                    prompt: data.prompt, context: data.context, italicize: data.italicize,
+                    model: $('#run-model').value, reasoning_effort: $('#thinking-level').value,
+                    revision: blocks.get(reviewTarget).revision,
+                });
+                settingsDirty = false;
+            } else {
+                const saved = await request(base, 'PATCH', data);
+                book.promptVersion = saved.prompt_version; settingsDirty = false;
+                await request(`${base}/run`, 'POST', { scope, model: $('#run-model').value,
+                    reasoning_effort: $('#thinking-level').value, chunk_size: Number($('#chunk-size').value), version: book.version });
+            }
             setup.close(); signature = ''; await refresh(true);
         } catch (error) {
             $('#setup-error').textContent = error.message; $('#setup-error').classList.remove('hidden');
@@ -347,20 +399,6 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
     $('#dismiss-learning').addEventListener('click', async () => {
         try { await request(`${base}/learning/dismiss`, 'POST', {}); await refresh(true); }
         catch (error) { message(error.message, true); }
-    });
-    $('#toggle-edit').addEventListener('click', () => {
-        const nextEditing = !editing;
-        if (!nextEditing && current) {
-            try {
-                renderDiff(dirty ? { ...current, segments: applyItalics(annotateStyles(draftSegments(current.segments, text()), current.segments), formats()) } : current);
-            } catch (error) { message(t(error.message), true); return; }
-        }
-        editing = nextEditing;
-        $('[data-panel="edit"]').classList.toggle('hidden', !editing);
-        $('[data-panel="review"]').classList.toggle('hidden', editing);
-        $('#toggle-edit').textContent = t(editing ? 'review' : 'edit_chunk');
-        $('#toggle-edit').setAttribute('aria-pressed', String(editing));
-        if (editing) quill.focus();
     });
     document.addEventListener('keydown', event => {
         if (!event.altKey || !['ArrowDown', 'ArrowUp'].includes(event.key)) return;
