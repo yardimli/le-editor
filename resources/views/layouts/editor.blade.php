@@ -12,7 +12,7 @@
     <script>try { document.documentElement.classList.toggle('dark', (localStorage.getItem('le-theme') || @js(auth()->user()?->theme ?? 'light')) === 'dark'); } catch(e) {}</script>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
-<body>
+<body @class(['editor-page' => request()->routeIs('books.show')])>
     <header class="site-header">
         <a href="{{ url('/') }}" class="brand"><img src="{{ asset('images/le-editor-logo.png') }}" width="44" height="44" alt="" class="shrink-0"><span>LE EDITOR<small>{{ __('editor.tagline') }}</small></span></a>
         <nav aria-label="Main" class="flex flex-wrap items-center gap-3 md:gap-6">
@@ -49,10 +49,6 @@
             <div class="header-notification">
                 <span id="header-ai-spinner" class="queue-spinner hidden" aria-hidden="true"></span>
                 <span id="header-ai-status" role="status" aria-live="polite"></span>
-                <span id="editor-learning-hint" class="hidden" title="{{ __('editor.learning_offer') }}">
-                    <button type="button" id="learn-from-feedback" class="quiet-button underline">{{ __('editor.learning_hint_short') }}</button>
-                    <button type="button" id="dismiss-learning" class="quiet-button ml-2" aria-label="{{ __('editor.dismiss') }}">×</button>
-                </span>
                 <button type="button" id="header-ai-cancel" class="quiet-button underline hidden">{{ __('editor.setup_cancel') }}</button>
             </div>
     </div></footer>

@@ -2,122 +2,82 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { chunkText, changeKey } from '../resources/js/chunk-text.js';
-import { italicOps, italicRanges, readItalics } from '../resources/js/italics.js';
-import { chunkStyles, sliceStyles } from '../resources/js/source-styles.js';
 
 class Element {
-    constructor() {
-        this.children = []; this.nodes = new Map(); this.listeners = {}; this.dataset = {}; this.value = ''; this.options = [{}];
+    constructor(tag = 'div') {
+        this.tag = tag; this.children = []; this.nodes = new Map(); this.listeners = {}; this.dataset = {}; this.value = '';
+        this.scrollTop = 0; this.scrollHeight = 0; this.clientHeight = 0;
         const classes = new Set();
-        this.classList = { add: c => classes.add(c), remove: c => classes.delete(c), contains: c => classes.has(c),
-            toggle(c, on) { if (on) classes.add(c); else classes.delete(c); } };
+        this.classList = {add: c => classes.add(c), remove: c => classes.delete(c), contains: c => classes.has(c), toggle(c, on) { if (on) classes.add(c); else classes.delete(c); }};
     }
     querySelector(key) { if (!this.nodes.has(key)) this.nodes.set(key, new Element()); return this.nodes.get(key); }
-    append(...children) { for (const child of children) { child.parent = this; this.children.push(child); } }
-    replaceChildren(...children) { this.children = []; this.append(...children); }
-    setAttribute(key, value) { this[key] = value; }
+    append(...children) { this.children.push(...children); }
+    replaceChildren(...children) { this.children = children; }
     addEventListener(event, fn) { this.listeners[event] = fn; }
-    scrollIntoView() { this.scrolled = true; }
-    showModal() { this.open = true; }
-    close() { this.open = false; }
-    focus() {}
     remove() {}
+    requestSubmit() { this.submitted = (this.submitted || 0) + 1; }
 }
-
-function harness(chat = []) {
-    const root = new Element();
-    let quill;
-    class Quill {
-        static import() { return {}; } static register() {}
-        constructor() { quill = this; this.root = new Element(); this.history = { clear() {} }; this.ops = []; }
-        getText() { return this.ops.map(op => op.insert).join(''); }
-        getContents() { return {ops:this.ops}; }
-        setContents(value) { this.ops = value.ops; }
-        getSelection() { return null; }
-        enable() {} focus() {}
-        on(_, handler) { this.handler = handler; }
-        type(text) { this.ops = [{insert:text+'\n'}]; this.handler(null, null, 'user'); }
-    }
-    const chunks = [1,2].map(id => ({id, position:id-1, revision:1, status:id === 1 ? 'completed' : 'pending',
-        segments:[{type:'equal', before:`Block ${id}`, after:`Block ${id}`, status:'accepted'}]}));
-    const calls = []; let failSave = false;
-    const $ = (selector, parent = root) => parent.querySelector(selector);
-    const choices = () => {
-        const found = [];
-        const walk = node => { if (node.className === 'chat-choice') found.push(node); node.children.forEach(walk); };
-        walk($('#chat-messages')); return found;
-    };
-    const context = vm.createContext({ Quill, chunkText, changeKey, italicOps, italicRanges, readItalics, chunkStyles, sliceStyles,
-        appendFormatted() {}, sliceRanges: () => [], setInterval() {}, URLSearchParams,
-        document: {createElement: () => new Element(), addEventListener() {}},
-        window: {leBook:{id:1, version:1}, addEventListener() {}},
-    });
-    const source = readFileSync(new URL('../resources/js/book-editor.js', import.meta.url), 'utf8')
-        .replace(/^import .*;\r?\n/gm, '').replace('export function startBookEditor', 'function startBookEditor');
+function descendants(node) { return node.children.flatMap(child => [child, ...descendants(child)]); }
+function harness() {
+    const root = new Element(), calls = [];
+    const $ = selector => root.querySelector(selector);
+    const boxes = () => descendants($('#chat-messages')).filter(el => el.tag === 'input');
+    const state = {tokens: {}, title: 'Book', editorial_stage: 'awaiting_consent', chat: [], chunks: [{id: 1, revision: 1, position: 0, status: 'completed', segments: [{type:'replace', before:'Old', after:'New', status:'pending'}]}]};
+    const context = vm.createContext({URLSearchParams, Event, document:{createElement: tag => new Element(tag)},
+        window:{leBook:{id:1}, addEventListener(){}, dispatchEvent(){}}, appendFormatted:(el,text)=>el.textContent=text, sliceRanges:()=>[], sliceStyles:()=>[]});
+    const source = readFileSync(new URL('../resources/js/book-editor.js', import.meta.url), 'utf8').replace(/^import .*;\r?\n/gm, '').replace('export function startBookEditor', 'function startBookEditor');
     vm.runInContext(source, context);
-    const editor = context.startBookEditor({ $, $$: selector => selector === '.chat-choice' ? choices() : [], t:key=>key, getModels:()=>[], request:async (url, method, data) => {
-        calls.push({url, method, data});
-        if (method === 'PUT') {
-            if (failSave) throw Error('Save failed');
-            const chunk = chunks.find(c => url.includes(`/chunks/${c.id}/`));
-            chunk.revision++; chunk.segments = [{type:'equal', before:data.text, after:data.text, status:'accepted'}];
-            return {version:2, chunk:structuredClone(chunk)};
+    const editor = context.startBookEditor({$, $$: () => boxes(), t: key => key, request: async (url, method, data) => {
+        calls.push({url,method,data});
+        if (method === 'PATCH') {
+            const item = state.chat[0]; assert.equal(data.version, item.selection_version);
+            item.selected = [...data.selected]; item.selection_version++;
+            return {version:item.selection_version};
         }
-        return {version:2, prompt:'', chat, tokens:{}, chunks:structuredClone(chunks), chunk_count:2,
-            run:{id:1,status:'cancelled',completed_chunks:1,total_chunks:2}, queue:{}, metadata_status:'complete'};
+        if (method === 'POST' && url.endsWith('/chat')) {
+            if (data.suggestion_id) state.chat[0].submitted_at = 'now';
+            state.chat.push({id:2,role:'user',content:data.content,status:'pending'});
+            return {ok:true};
+        }
+        return structuredClone(state);
     }});
-    return {editor, $, calls, choices, quill:()=>quill, fail:()=>{failSave=true;}, cards:()=>$('#book-blocks').children};
+    return {$, boxes, editor, state, calls};
 }
 
-test('switching blocks saves the previous editor and returns it to review', async () => {
+test('manuscript displays tracked changes without editing or decision controls', async () => {
     const h = harness(); await h.editor.poll();
-    const [first, second] = h.cards();
-    assert.equal(second.querySelector('[data-status]').textContent, 'chunk_not_processed');
-    await first.querySelector('[data-edit]').listeners.click();
-    h.quill().type('Saved first block');
-    await second.querySelector('[data-edit]').listeners.click();
-    assert.equal(h.calls.filter(c => c.method === 'PUT').length, 1);
-    assert.equal(h.calls.find(c => c.method === 'PUT').data.text, 'Saved first block');
-    assert.equal(first.querySelector('[data-review]').classList.contains('hidden'), false);
-    assert.equal(second.querySelector('[data-review]').classList.contains('hidden'), true);
-    assert.equal(h.$('#block-edit-panel').parent, second.querySelector('[data-edit-slot]'));
-    h.quill().type('Saved second block');
-    await second.querySelector('[data-edit]').listeners.click();
-    assert.equal(h.calls.filter(c => c.method === 'PUT').length, 2);
-    assert.equal(second.querySelector('[data-review]').classList.contains('hidden'), false);
-    assert.equal(h.$('#block-edit-panel').parent, h.$('#editor-parking'));
-    await first.querySelector('[data-redo]').listeners.click();
-    assert.equal(h.$('#setup-panel').scrolled, true);
-    assert.equal(h.$('#setup-dialog').open, undefined);
-    assert.equal(h.$('#setup-hint').textContent, 'block_review_hint');
+    const nodes = descendants(h.$('#book-blocks'));
+    assert.ok(nodes.some(n => n.tag === 'del')); assert.ok(nodes.some(n => n.tag === 'ins'));
+    assert.equal(nodes.some(n => ['button','textarea','input'].includes(n.tag)), false);
 });
 
-test('a failed save keeps the original block open and retains the unsaved text', async () => {
+test('Enter sends, Shift+Enter and IME composition do not submit', async () => {
     const h = harness(); await h.editor.poll();
-    const [first, second] = h.cards();
-    await first.querySelector('[data-edit]').listeners.click(); h.quill().type('Do not lose this'); h.fail();
-    await second.querySelector('[data-edit]').listeners.click();
-    assert.equal(h.quill().getText(), 'Do not lose this\n');
-    assert.equal(h.$('#block-edit-panel').parent, first.querySelector('[data-edit-slot]'));
-    assert.equal(first.querySelector('[data-review]').classList.contains('hidden'), true);
-    assert.equal(second.querySelector('[data-review]').classList.contains('hidden'), false);
+    let prevented = 0;
+    const event = {key:'Enter', shiftKey:false, isComposing:false, preventDefault(){prevented++;}};
+    h.$('#chat-input').listeners.keydown(event);
+    assert.equal(h.$('#chat-form').submitted, 1); assert.equal(prevented, 1);
+    h.$('#chat-input').listeners.keydown({...event,shiftKey:true});
+    h.$('#chat-input').listeners.keydown({...event,isComposing:true});
+    assert.equal(h.$('#chat-form').submitted, 1);
 });
 
+test('selection writes finish before Send and submitted suggestions stay readonly after refresh', async () => {
+    const h = harness();
+    h.state.editorial_stage = 'ready';
+    h.state.chat = [{id:1,role:'assistant',content:'Plan',status:'complete',selection_version:1,selected:[],suggestions:[{label:'Grammar',instruction:'Fix grammar',reason:'Several grammar errors'}]}];
+    await h.editor.poll();
+    const box = h.boxes()[0]; box.checked = true; box.listeners.change();
+    await h.$('#chat-form').listeners.submit({preventDefault(){}});
+    assert.equal(h.calls.find(c => c.method === 'PATCH').data.selected[0], 0);
+    const sent = h.calls.find(c => c.method === 'POST').data;
+    assert.equal(sent.selection_version, 2); assert.equal(sent.suggestion_id, 1);
+    await h.editor.poll();
+    assert.equal(h.boxes()[0].checked, true); assert.equal(h.boxes()[0].disabled, true);
+});
 
-test('checkbox plan preserves custom instructions and survives polling without auto-starting', async () => {
-    const h = harness([{id:1, role:'assistant', content:'Opening analysis', status:'complete', suggestions:[
-        {label:'Grammar', instruction:'Fix grammar only.'}, {label:'Clarity', instruction:'Clarify long sentences.'},
-    ]}]);
-    await h.editor.poll();
-    h.$('#book-prompt').value = 'Preserve my voice.';
-    const [grammar, clarity] = h.choices();
-    grammar.checked = true; grammar.listeners.change();
-    assert.equal(h.$('#book-prompt').value, 'Preserve my voice.\n\nFix grammar only.');
-    assert.equal(clarity.checked, false);
-    await h.editor.poll();
-    assert.equal(h.$('#book-prompt').value, 'Preserve my voice.\n\nFix grammar only.');
-    grammar.checked = false; grammar.listeners.change();
-    assert.equal(h.$('#book-prompt').value, 'Preserve my voice.');
-    assert.equal(h.calls.some(call => call.method === 'POST'), false);
+test('empty messages are allowed for opening consent but not ordinary conversation', async () => {
+    const h = harness(); await h.editor.poll(); assert.equal(h.$('#chat-send').disabled, false);
+    h.state.editorial_stage = 'ready'; await h.editor.poll(); assert.equal(h.$('#chat-send').disabled, true);
+    h.$('#chat-input').value = 'Start editing'; h.$('#chat-input').listeners.input(); assert.equal(h.$('#chat-send').disabled, false);
 });

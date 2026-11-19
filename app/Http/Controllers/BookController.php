@@ -37,16 +37,45 @@ class BookController extends Controller
         return back();
     }
 
+    public function selections(Request $request, Book $book, \App\Models\EditorialMessage $message)
+    {
+        $this->owner($book);
+        abort_unless($message->book_id === $book->id, 404);
+        $data = $request->validate(['selected' => 'present|array|max:8', 'selected.*' => 'integer|min:0|distinct', 'version' => 'required|integer']);
+        return DB::transaction(function () use ($book, $message, $data) {
+            Book::lockForUpdate()->findOrFail($book->id);
+            $locked = \App\Models\EditorialMessage::lockForUpdate()->findOrFail($message->id);
+            abort_if($locked->submitted_at || $locked->role !== 'assistant', 409, __('editor.conflict'));
+            abort_unless($locked->selection_version === $data['version'], 409, __('editor.conflict'));
+            foreach ($data['selected'] as $index) abort_unless(isset($locked->suggestions[$index]), 422);
+            $locked->update(['selected' => $data['selected'], 'selection_version' => $locked->selection_version + 1]);
+            return response()->json(['version' => $locked->selection_version]);
+        });
+    }
+
     public function chat(Request $request, Book $book)
     {
         $this->owner($book);
-        $data = $request->validate(['content' => 'required|string|max:4000']);
+        $data = $request->validate(['content' => 'present|nullable|string|max:4000', 'suggestion_id' => 'nullable|integer', 'selection_version' => 'required_with:suggestion_id|integer']);
         DB::transaction(function () use ($book, $data) {
+            $user = \App\Models\User::lockForUpdate()->findOrFail($book->user_id);
             $locked = Book::lockForUpdate()->findOrFail($book->id);
             abort_if($locked->editorialMessages()->where('status', 'pending')->exists(), 409, __('editor.chat_pending'));
-            $locked->editorialMessages()->create(['role' => 'user', 'content' => $data['content'], 'status' => 'pending']);
+            $selection = [];
+            if (!empty($data['suggestion_id'])) {
+                $suggestion = $locked->editorialMessages()->lockForUpdate()->findOrFail($data['suggestion_id']);
+                abort_if($suggestion->submitted_at || $suggestion->role !== 'assistant', 409, __('editor.conflict'));
+                abort_unless($suggestion->selection_version === $data['selection_version'], 409, __('editor.conflict'));
+                foreach ($suggestion->selected ?? [] as $index) $selection[] = $suggestion->suggestions[$index];
+                $suggestion->update(['submitted_at' => now()]);
+            }
+            $content = trim($data['content'] ?? '');
+            abort_if($content === '' && empty($data['suggestion_id']) && $locked->editorial_stage !== 'awaiting_consent', 422, __('editor.chat_message_required'));
+            // Fence an in-flight edit before interpreting a possible stop or new instruction.
+            if ($locked->activeRun?->isActive()) $locked->activeRun->update(['status' => 'cancelled']);
+            $user->forceFill(['llm_paused' => false, 'llm_lease' => null, 'llm_lease_until' => null])->save();
+            $locked->editorialMessages()->create(['role' => 'user', 'content' => $content, 'suggestions' => $selection, 'status' => 'pending']);
         });
-        app(BrowserQueue::class)->resume(auth()->id(), false);
         return response()->json(['ok' => true]);
     }
 
@@ -98,8 +127,10 @@ class BookController extends Controller
             'user_id' => $request->user()->id, 'title' => pathinfo($request->file('file')->getClientOriginalName(), PATHINFO_FILENAME),
             'original_formatting' => $import['formatting'], 'italics' => $import['italics'],
             'original_filename' => $request->file('file')->getClientOriginalName(),
+            'metadata_status' => 'awaiting_consent', 'editorial_stage' => 'awaiting_consent', 'learn' => false,
             'original_path' => $path, 'original_text' => $import['text'], 'text' => $import['text'], 'model' => $model,
         ]);
+        app(\App\Services\EditorialWorkflow::class)->say($book, 'chat_opening', 'opening');
         $book->versions()->create(['text' => $book->text, 'italics' => $book->italics, 'reason' => 'import']);
         app(BrowserQueue::class)->resume(auth()->id(), false);
         return redirect()->route('books.show', $book)->with('status', __('editor.import_notice'));
@@ -198,7 +229,8 @@ class BookController extends Controller
             'title' => $book->title, 'language' => $book->language,
             'metadata_status' => $book->metadata_status,
             'author' => $book->author,
-            'chat' => $book->editorialMessages()->orderBy('id')->get(['id', 'role', 'content', 'suggestions', 'status']),
+            'editorial_stage' => $book->editorial_stage,
+            'chat' => $book->editorialMessages()->orderBy('id')->get(['id', 'role', 'content', 'suggestions', 'selected', 'submitted_at', 'selection_version', 'kind', 'status']),
             'learning_hint' => $book->learn && !$book->learning_hint_dismissed && $waiting > 50,
             'learning_awaiting' => $waiting, 'learning_requested' => (bool) $book->learning_requested,
             'learning_failed' => Feedback::where('book_id', $book->id)->where('status', 'failed')->count(),
@@ -405,7 +437,15 @@ class BookController extends Controller
     public function cancel(Book $book)
     {
         $this->owner($book);
-        app(BrowserQueue::class)->pause(auth()->id());
+        DB::transaction(function () use ($book) {
+            $user = \App\Models\User::lockForUpdate()->findOrFail($book->user_id);
+            $locked = Book::lockForUpdate()->findOrFail($book->id);
+            $user->forceFill(['llm_lease' => null, 'llm_lease_until' => null])->save();
+            $locked->activeRun?->update(['status' => 'cancelled']);
+            $locked->editorialMessages()->where('status', 'pending')->update(['status' => 'failed']);
+            if ($locked->editorial_stage !== 'awaiting_followup') $locked->update(['editorial_stage' => 'paused']);
+            app(\App\Services\EditorialWorkflow::class)->say($locked, 'chat_paused');
+        });
         return response()->json(['ok' => true]);
     }
 

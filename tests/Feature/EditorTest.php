@@ -749,12 +749,15 @@ class EditorTest extends TestCase
         $this->actingAs($user)->post('/books', ['file' => $file])->assertRedirect();
         Queue::assertNotPushed(InferBookMetadata::class);
         $book = Book::firstOrFail();
-        Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => '{"title":"Yeni Başlık","author":"Yazar","language":"tr","genre":"fiction","message":"Planınız","suggestions":[{"label":"Dil","instruction":"Dili düzelt."}]}']]]])]);
-        (new InferBookMetadata($book->id, app(BrowserQueue::class)->claim($book->user_id)))->handle(app(OpenRouter::class), app(TextEditor::class));
+        Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => '{"action":"plan","title":"Yeni Başlık","author":"Yazar","language":"tr","genre":"fiction","message":"Planınız","suggestions":[{"label":"Dil","instruction":"Dili düzelt.","reason":"Dil hataları var."}]}']]]])]);
+        $this->assertSame('awaiting_consent', $book->metadata_status);
+        $this->assertNull(app(BrowserQueue::class)->state($user->id)['task']);
+        $this->postJson("/books/{$book->id}/chat", ['content' => ''])->assertOk();
+        app(BrowserQueue::class)->step($book->user_id);
         $this->assertSame('Yeni Başlık', $book->fresh()->title);
         $this->assertSame('Yazar', $book->fresh()->author);
         $this->assertSame('fiction', $book->fresh()->editorial_genre);
-        $this->assertSame('Dili düzelt.', $book->editorialMessages()->first()->suggestions[0]['instruction']);
+        $this->assertSame('Dili düzelt.', $book->editorialMessages()->where('role', 'assistant')->latest('id')->first()->suggestions[0]['instruction']);
         $this->assertEmpty($book->fresh()->prompt);
         Http::assertSent(fn ($request) => str_ends_with($request->url(), '/chat/completions')
             && app(TextEditor::class)->words(json_decode($request['messages'][1]['content'], true)['excerpt']) === 5000);
@@ -770,7 +773,7 @@ class EditorTest extends TestCase
         $this->postJson("/books/{$book->id}/chat", ['content' => 'Duplicate'])->assertStatus(409);
         Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => json_encode([
             'title' => 'Book', 'author' => null, 'language' => 'tr', 'genre' => 'fiction', 'message' => 'Consider dialogue clarity.',
-            'suggestions' => [['label' => 'Dialogue', 'instruction' => 'Clarify dialogue.']],
+            'suggestions' => [['label' => 'Dialogue', 'instruction' => 'Clarify dialogue.', 'reason' => 'The speakers are unclear.']],
         ])]]]])]);
         app(BrowserQueue::class)->step($book->user_id);
         $this->assertSame('Polish lightly.', $book->fresh()->prompt);

@@ -74,7 +74,7 @@ $('#test-key')?.addEventListener('click', async event => {
 });
 let models = [];
 async function loadModels() {
-    if (!$$('[data-model-select]').length && !window.leBook) return;
+    if (!$$('[data-model-select]').length) return;
     try {
         const catalog = await request('/models');
         models = catalog.models;

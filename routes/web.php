@@ -32,6 +32,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/books', [BookController::class, 'store'])->middleware('throttle:10,1')->name('books.store');
     Route::get('/books/{book}', [BookController::class, 'show'])->name('books.show');
     Route::get('/books/{book}/api-history', [BookController::class, 'apiHistory'])->name('books.api-history');
+    Route::patch('/books/{book}/chat/{message}/selections', [BookController::class, 'selections']);
     Route::post('/books/{book}/chat', [BookController::class, 'chat'])->middleware('throttle:10,1');
     Route::post('/books/{book}/metadata/retry', [BookController::class, 'retryMetadata']);
     Route::get('/books/{book}/state', [BookController::class, 'state'])->name('books.state');

@@ -4,25 +4,19 @@ A Turkish-first, bilingual AI book editor built with Laravel 10, Breeze, Blade, 
 
 ## Features
 
-- Turkish and English interfaces; warm paper and dark themes.
-- Breeze registration, authentication, password reset and account management.
-- DOCX import; title, author, language and fiction/nonfiction classification inferred from the first 5,000 words. An editorial chat suggests a checkbox plan; users can ask follow-up questions and edit the chosen instructions before starting.
-- Ten bilingual presets covering fiction, nonfiction, academic writing and poetry at different editing levels. Combine presets into a book-specific prompt; create, duplicate, edit and delete personal presets.
-- Encrypted per-user OpenRouter keys; optional server-key development mode.
-- Cached model discovery using the server key. Free models are excluded and output prices are filtered by environment limits.
-- Queued editing in adjustable word-sized chunks (default 1,000), with paragraph boundaries preserved where possible. The model returns plain prose; `jfcherng/php-diff` computes changes.
-- Inline deletions/insertions, accept/reject/undo controls, pending-change navigation. Keyboard shortcuts: Alt+Up / Alt+Down.
-- A persistent editorial footer with processed-chunk progress and Pause, Resume and Restart controls. Completed suggestions remain; untouched chunks retain their source text. The document-side chat receives editorial comments as each block completes. Model and thinking preferences are configured in Settings.
-- Optional prompt learning: review decisions are collected without LLM calls. After more than 50 suggestions, a dismissible footer hint offers to update the prompt. Learning runs only when requested, in batches of up to 50 decisions; shared presets remain unchanged.
-- Reruns materialize accepted suggestions, archive the old review and use the latest prompt with a newly chosen model/chunk size.
-- Chunk navigation with Previous/Next, a clickable 1/N jump control and processed-book progress. Only the selected chunk is fetched.
-- Quill text and italic editing with an Edit/Review switch, with 10-second debounced autosave, Save now and per-chunk optimistic concurrency checks. Review completed chunks while later chunks run.
-- Immutable original chunk text, author revision snapshots and an AI-edit counter per chunk.
-- Manuscript snapshots, prompt restoration and read-only historical reviews.
-- DOCX exports with genuine `w:ins` / `w:del` revisions. Approved AI changes, manual edits and pending suggestions are always included for export; rejected suggestions are excluded. Export does not approve pending suggestions in the app.
-- Cost estimates, reported run usage, private file storage, ownership checks and deletion controls.
+- Turkish and English interfaces, light/dark themes, private DOCX uploads and encrypted per-user OpenRouter keys.
+- A read-only manuscript displays editorial changes; final human review happens in Word using genuine tracked changes. The revision author is configurable in Settings (default: LE Editor).
+- A full-height right-side chat has a bottom-pinned composer. Enter sends; Shift+Enter inserts a newline.
+- The assistant invites the user to approve an opening analysis. An empty first message consents; no manuscript analysis runs automatically on upload.
+- The first 5,000 words inform title, evidenced author, language, fiction/nonfiction classification and explained checkbox suggestions.
+- Checkbox choices persist across reloads. Send submits selections together with the message and locks that suggestion set. Ask for new suggestions to revise the plan.
+- The LLM interprets start, pause/stop, continue and restart in context. Restart asks whether to retain current edits or use the original, then asks for confirmation.
+- Each chat request includes five completed user/assistant pairs, current selections, the agreed prompt and run state. Assistant replies use the UI language.
+- Block observations appear in chat. A material deviation pauses before applying the block and asks a follow-up; the answer updates instructions before continuing.
+- Model and thinking preferences live in Settings. A pause button records the pause in chat and invalidates in-flight editing results.
+- Browser-driven sequential processing, retained run history, source-formatting preservation, private reusable DOCX downloads and API cost history.
 
-See [todo.md](todo.md) for implementation and verification status.
+See [new-plan.md](new-plan.md) for the current workflow implementation checklist. Some older sections below describe the superseded interactive review workflow.
 
 ## Requirements
 
@@ -460,3 +454,7 @@ Requests run through the browser with the existing account lease, without a work
 Deploy these changes with `php artisan migrate --force` and `npm run build`.
 
 DOCX downloads now prepare a private server-side file first, then show a ready message and an explicit Download button. The spinner stops when preparation finishes; downloads do not start automatically. Prepared files older than 24 hours are removed on that user's next preparation request (no scheduled worker). Recent links remain reusable and require book ownership.
+
+### Conversational workflow deployment
+
+Run `php artisan migrate --force`, rebuild with `npm ci && npm run build`, and refresh cached Blade views (`php artisan view:cache`). The new migration stores conversation stages, restart source, submitted checkbox sets and selection versions. Existing manuscript and export data are retained. The opening assistant greeting is a localized stored message; LLM analysis begins only after the user sends a message. No new environment variables or background workers are required.

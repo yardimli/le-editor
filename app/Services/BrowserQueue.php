@@ -64,7 +64,7 @@ class BrowserQueue
             $user->forceFill(['llm_paused' => false])->save();
             if ($resumeEditing) {
                 EditingRun::whereIn('id', Book::where('user_id', $userId)->select('active_run_id'))
-                    ->where('status', 'cancelled')->update(['status' => 'queued', 'error' => null]);
+                    ->whereHas('book', fn ($q) => $q->whereNotIn('editorial_stage', ['awaiting_consent', 'awaiting_followup', 'restart_choice', 'restart_confirmation', 'paused']))->where('prompt', '!=', '')->where('status', 'cancelled')->update(['status' => 'queued', 'error' => null]);
             }
         });
     }

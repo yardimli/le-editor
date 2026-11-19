@@ -74,7 +74,7 @@ class EditChunk implements ShouldQueue
             $withComment = $run->book->editorial_plan !== null;
             if ($withComment) {
                 $locale = $run->book->user->locale === 'en' ? 'English' : 'Turkish';
-                $system .= "\nResponse format override: Return ONLY JSON with edited_text (the complete edited manuscript excerpt, preserving its original language and inline tags) and comment (a short, specific editorial observation about this block in {$locale}, explaining changes or issues relevant to the chosen instructions). Never put commentary inside edited_text.";
+                $system .= "\nResponse format override: Return ONLY JSON with edited_text (the complete edited manuscript excerpt, preserving its original language and inline tags) and comment (a short, specific editorial observation about this block in {$locale}, explaining changes or issues relevant to the chosen instructions). Also return needs_followup (boolean) and question (a specific question in the UI language, or null). If this block materially deviates from the agreed editorial instructions or needs an author decision, set needs_followup=true and ask before editing it. Ordinary grammar corrections are not deviations. This is a finished manuscript: do not invent or rewrite content beyond the agreed scope. Never put commentary inside edited_text.";
             }
             $formattedInput = $formatting->encode($input, $formatting->ranges($chunk->segments ?? [], false));
             $budget = $api->editingBudget($model, $formattedInput, $system, $run->reasoning_effort ?? 'low');
@@ -84,6 +84,20 @@ class EditChunk implements ShouldQueue
             $editedText = $result['text'];
             if ($withComment) {
                 $payload = json_decode(preg_replace('/^```(?:json)?\s*|\s*```$/u', '', trim($editedText)), true);
+                if (is_array($payload) && ($payload['needs_followup'] ?? false) === true) {
+                    if (!is_string($payload['question'] ?? null) || trim($payload['question']) === '') throw new \RuntimeException('suspicious_output');
+                    app(BrowserQueue::class)->commit($run->book->user_id, $this->token, function () use ($run, $chunk, $payload, $result) {
+                        $book = \App\Models\Book::lockForUpdate()->find($run->book_id);
+                        $locked = EditingRun::lockForUpdate()->find($run->id);
+                        $current = \App\Models\Chunk::lockForUpdate()->find($chunk->id);
+                        if (!$book || $book->active_run_id !== $run->id || !$locked?->isActive() || $current?->revision !== $chunk->revision) return;
+                        $question = mb_substr($payload['question'], 0, 4000);
+                        $locked->update(['status' => 'cancelled', 'tokens' => $locked->tokens + $result['tokens'], 'cost' => $locked->cost + $result['cost']]);
+                        $book->update(['editorial_stage' => 'awaiting_followup', 'editorial_question' => $question]);
+                        $book->editorialMessages()->create(['role' => 'assistant', 'kind' => 'followup', 'content' => '#'.($chunk->position + 1).' — '.$question]);
+                    });
+                    return;
+                }
                 if (!is_array($payload) || !is_string($payload['edited_text'] ?? null) || !is_string($payload['comment'] ?? null) || trim($payload['comment']) === '') throw new \RuntimeException('suspicious_output');
                 $editedText = $payload['edited_text'];
                 $comment = mb_substr($payload['comment'], 0, 4000);
@@ -114,11 +128,15 @@ class EditChunk implements ShouldQueue
                 $current->update(['output' => $output, 'segments' => $segments, 'status' => 'completed',
                     'review_settings' => null, 'review_error' => null, 'ai_edit_count' => $current->ai_edit_count + 1, 'revision' => $current->revision + 1]);
                 if (!$wasCompleted) $locked->completed_chunks++;
-                if ($comment !== null) $locked->book->editorialMessages()->create(['role' => 'assistant', 'content' => '#'.($chunk->position + 1).' — '.$comment]);
+                if ($comment !== null) $locked->book->editorialMessages()->create(['role' => 'assistant', 'kind' => 'progress', 'content' => '#'.($chunk->position + 1).' — '.$comment]);
                 $locked->tokens += $result['tokens'];
                 $locked->cost += $result['cost'];
                 $locked->status = $locked->completed_chunks === $locked->total_chunks ? 'completed' : ($locked->isActive() ? 'running' : $locked->status);
                 $locked->save();
+                if ($locked->status === 'completed') {
+                    $locked->book->update(['editorial_stage' => 'completed']);
+                    app(\App\Services\EditorialWorkflow::class)->say($locked->book, 'chat_complete');
+                }
             });
         } catch (\Throwable $e) {
             $known = ['api_key_required', 'api_key_invalid', 'insufficient_credits', 'rate_limited', 'provider_error',

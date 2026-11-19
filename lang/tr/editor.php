@@ -1,5 +1,18 @@
 <?php
 return [
+    'chat_opening' => 'Tamamlanmış kitabınızın ilk 5.000 kelimesini okuyup bir editörlük planı önereceğim. Kabul ediyorsanız boş bir mesaj gönderebilir veya planı oluşturmadan önce bana daha fazla bilgi verebilirsiniz.',
+    'chat_paused' => 'Düzenleme duraklatıldı. Devam etmemi isteyebilir veya düzenleme planındaki değişiklikleri anlatabilirsiniz.',
+    'chat_complete' => 'Düzenleme tamamlandı. Word’de insan incelemesi için izlenen değişiklikleri dışa aktarabilir veya planı değiştirmemi isteyebilirsiniz.',
+    'chat_restart_choice' => 'Mevcut değişiklikleri koruyarak yeni talimatları mı uygulayalım, yoksa özgün metinden yeniden mi başlayalım?',
+    'chat_placeholder' => 'Editörünüze bir mesaj yazın…',
+    'chat_keyboard' => 'Enter: gönder · Shift+Enter: yeni satır',
+    'chat_waiting_answer' => 'Yanıtınız bekleniyor',
+    'chat_message_required' => 'Bir mesaj yazın veya öneri seçimlerinizi gönderin.',
+    'chat_selected_sent' => 'Seçtiğim düzenleme görevleri bunlar.',
+    'chat_agree' => 'Lütfen başlangıcı okuyup bir plan önerin.',
+    'chat_selection_locked' => 'Gönderildi — planı değiştirmek için yeni öneriler isteyin.',
+    'chat_check_send' => 'İstediğiniz görevleri işaretleyip Gönder’e tıklayın. Bir mesaj da ekleyebilirsiniz.',
+
     'revision_author' => 'Değişiklik yazarı',
     'revision_author_hint' => 'Yeni dışa aktarılan Word belgelerinde izlenen değişikliklerde gösterilen ad. Varsayılan: LE Editor.',
     'queue_chat' => 'Editör yanıtı hazırlanıyor…',

@@ -1,5 +1,18 @@
 <?php
 return [
+    'chat_opening' => 'I will read the first 5,000 words and suggest an editorial plan for your finished manuscript. You can send an empty message if you agree, or tell me more before I start creating the plan.',
+    'chat_paused' => 'Editing is paused. Tell me when to continue, or describe changes to the editorial plan.',
+    'chat_complete' => 'The editorial pass is complete. You can export the tracked changes for human review in Word, or ask me to revise the plan.',
+    'chat_restart_choice' => 'Would you like to keep the current edits and apply new instructions, or start again from the original manuscript?',
+    'chat_placeholder' => 'Message your editor…',
+    'chat_keyboard' => 'Enter to send · Shift+Enter for a new line',
+    'chat_waiting_answer' => 'Waiting for your answer',
+    'chat_message_required' => 'Write a message or submit a suggestion set.',
+    'chat_selected_sent' => 'Here are my selected editorial tasks.',
+    'chat_agree' => 'Please read the opening and suggest a plan.',
+    'chat_selection_locked' => 'Submitted — ask for new suggestions to revise this plan.',
+    'chat_check_send' => 'Check the tasks you want, then click Send. You can add a message too.',
+
     'revision_author' => 'Tracked-change author',
     'revision_author_hint' => 'Name shown on tracked changes in newly exported Word documents. Default: LE Editor.',
     'queue_chat' => 'Preparing an editorial reply…',
