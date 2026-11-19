@@ -10,7 +10,7 @@ const SizeStyle = Quill.import('attributors/style/size'); SizeStyle.whitelist = 
 
 export function startBookEditor({ $, $$, request, t, getModels }) {
     const book = window.leBook, base = `/books/${book.id}`;
-    const setup = $('#setup-dialog'), settings = $('#book-settings');
+    const setup = $('#setup-panel'), settings = $('#book-settings');
     const quill = new Quill('#chunk-editor', { theme: 'snow', modules: { toolbar: [['italic']], keyboard: { bindings: { bold: {key: 'b', shortKey: true, handler: () => false}, underline: {key: 'u', shortKey: true, handler: () => false} } }, history: { userOnly: true } }, formats: ['italic', 'bold', 'underline', 'strike', 'color', 'font', 'size', 'header', 'script'] });
     quill.root.setAttribute('aria-label', t('edit_chunk'));
     quill.root.setAttribute('role', 'textbox');
@@ -132,7 +132,7 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
             card.querySelector('[data-redo]').addEventListener('click', async () => {
                 if (busy) return;
                 busy = true;
-                try { await finishEditing(); reviewTarget = chunk.id; configureSetup(); setup.showModal(); }
+                try { await finishEditing(); reviewTarget = chunk.id; configureSetup(); setup.scrollIntoView({ block: 'nearest' }); }
                 catch (error) { message(error.message, true); }
                 finally { busy = false; }
             });
@@ -187,9 +187,9 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
         finally { busy = false; }
     }
     function configureSetup() {
-        $('#setup-hint').textContent = t(reviewTarget ? 'block_review_hint' : 'setup_hint');
+        $('#setup-hint').textContent = t(reviewTarget ? 'block_review_hint' : 'chat_hint');
         $('#run-scope-hint').textContent = t(reviewTarget ? 'block_review_hint' : 'rerun_hint');
-        $('#run-button').textContent = t(reviewTarget ? 'redo_block' : 'run'); estimate();
+        $('#run-button').textContent = t(reviewTarget ? 'redo_block' : 'start_editing'); estimate();
     }
     function renderProgress() {
         const run = state?.run, total = state?.chunk_count || 1;
@@ -197,6 +197,8 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
         $('#work-progress').value = percent;
         const running = ['queued', 'running'].includes(run?.status);
         const paused = window.leQueueState?.paused;
+        $('#run-scope').options[0].disabled = completed >= total;
+        if (completed >= total) $('#run-scope').value = 'all';
         $('#work-label').textContent = run
             ? `${t(paused && running ? 'cancelled' : run.status === 'queued' ? 'running' : run.status)} · ${completed} / ${total} · ${percent}%` : t('no_run');
         const task = window.leQueueState?.task;
@@ -205,9 +207,9 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
         }
         $('#work-error').textContent = run?.error ? t(run.error) : '';
         $('#pause-work').classList.toggle('hidden', !running || paused);
-        $('#resume-work').classList.toggle('hidden', !run || (!paused && !['cancelled', 'failed'].includes(run.status)));
+        $('#resume-work').classList.toggle('hidden', !run || !state?.prompt?.trim() || (!paused && !['cancelled', 'failed'].includes(run.status)));
         $('#restart-work').classList.toggle('hidden', !run || (running && !paused));
-        $('#open-setup').disabled = running && !paused;
+        $('#run-button').disabled = busy || (running && !paused) || state?.metadata_status === 'pending';
     }
     async function refresh(force = false) {
         if (polling) { if (!force) return polling; await polling; }
@@ -219,13 +221,14 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
             state = next; book.version = next.version;
             window.leQueueState = update.queue;
             if (!settingsDirty) {
-                $$('[name=editorial_genre]').forEach(radio => { radio.checked = radio.value === next.editorial_genre; });
                 $('#book-prompt').value = next.prompt || ''; book.promptVersion = next.prompt_version;
-                $('#book-name').value = next.title; $('#book-language').value = next.language;
+
                 $('#book-context').value = next.context || ''; $('#chunk-size').value = next.chunk_size;
-                $$('.preset-checkbox').forEach(box => { box.checked = !!next.prompt?.includes(box.dataset.instruction) || (next.italicize && box.dataset.presetKey === 'italics' && box.closest('[data-preset-genre]').dataset.presetGenre === next.editorial_genre); });
-                filterPresets();
+
             }
+            $('#book-name').value = next.title; $('#book-language').value = next.language;
+            renderChat(next.chat || []);
+            $('#retry-metadata').classList.toggle('hidden', next.metadata_status !== 'failed');
             $('#book-title').textContent = next.title;
             $('#metadata-message').classList.toggle('hidden', next.metadata_status === 'complete');
             $('#metadata-message').textContent = t(`metadata_${next.metadata_status}`);
@@ -271,101 +274,71 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
         } catch (error) { message(error.message, true); }
         finally { event.target.disabled = false; }
     });
-    function openSetup() { if (!busy) { reviewTarget = null; configureSetup(); setup.showModal(); } }
+    function openSetup() { if (!busy) { reviewTarget = null; configureSetup(); setup.scrollIntoView({ block: 'nearest' }); } }
     $('#restart-work').addEventListener('click', openSetup);
     $('#open-setup').addEventListener('click', openSetup);
-    $('#cancel-setup').addEventListener('click', () => { if (!busy) setup.close(); });
-    setup.addEventListener('cancel', event => { if (busy) event.preventDefault(); });
-    settings.addEventListener('input', () => { settingsDirty = true; estimate(); });
+    settings.addEventListener('input', () => { settingsDirty = true; syncChoices(); estimate(); });
     settings.addEventListener('submit', event => { event.preventDefault(); $('#run-form').requestSubmit(); });
-    function filterPresets() {
-        const genre = $('[name=editorial_genre]:checked')?.value || 'fiction';
-        $$('[data-preset-genre]').forEach(label => {
-            const visible = label.dataset.presetGenre === 'general' || label.dataset.presetGenre === genre || (genre === 'fiction' && label.dataset.presetGenre === 'poetry');
-            label.classList.toggle('hidden', !visible);
-            if (!visible) $('input', label).checked = false;
-        });
+    let chatSignature = '';
+    function syncChoices() {
+        $$('.chat-choice').forEach(box => { box.checked = $('#book-prompt').value.includes(box.dataset.instruction); });
     }
-    function combinePresets() {
-        $('#book-prompt').value = $$('.preset-checkbox:checked').map(item => item.dataset.instruction).join('\n\n');
-        settingsDirty = true; $('#prompt-live-status').textContent = t('setup_prompt_updated'); estimate();
-    }
-    $$('[name=editorial_genre]').forEach(radio => radio.addEventListener('change', () => {
-        const keys = new Set($$('.preset-checkbox:checked').map(box => box.dataset.presetKey));
-        $$('.preset-checkbox').forEach(box => { box.checked = keys.has(box.dataset.presetKey); });
-        filterPresets(); combinePresets();
-    }));
-    $$('.preset-checkbox').forEach(box => box.addEventListener('change', () => {
-        // Opposing register goals cannot both be selected.
-        if (box.checked && ['formal', 'casual'].includes(box.dataset.presetKey)) {
-            $$('.preset-checkbox').filter(other => other !== box && ['formal', 'casual'].includes(other.dataset.presetKey)).forEach(other => { other.checked = false; });
+    function renderChat(messages) {
+        const key = JSON.stringify(messages);
+        if (key === chatSignature) { syncChoices(); return; }
+        chatSignature = key;
+        const log = $('#chat-messages'), nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 60;
+        log.replaceChildren();
+        for (const item of messages) {
+            const entry = document.createElement('article'); entry.className = `chat-message chat-${item.role}`;
+            const role = document.createElement('strong'); role.textContent = t(item.role === 'user' ? 'you' : 'editorial_assistant');
+            const body = document.createElement('p'); body.textContent = item.content; entry.append(role, body);
+            for (const suggestion of item.suggestions || []) {
+                const label = document.createElement('label'); label.className = 'check-label preset-option items-start';
+                const box = document.createElement('input'); box.type = 'checkbox'; box.className = 'chat-choice'; box.dataset.instruction = suggestion.instruction;
+                const copy = document.createElement('span'); copy.textContent = suggestion.label;
+                const detail = document.createElement('small'); detail.textContent = suggestion.instruction; copy.append(detail);
+                box.addEventListener('change', () => {
+                    const prompt = $('#book-prompt');
+                    prompt.value = box.checked ? [prompt.value.trim(), suggestion.instruction].filter(Boolean).join('\n\n') : prompt.value.replace(suggestion.instruction, '').trim();
+                    settingsDirty = true; syncChoices(); estimate();
+                });
+                label.append(box, copy); entry.append(label);
+            }
+            if (item.status !== 'complete') {
+                const status = document.createElement('p'); status.className = 'hint'; status.textContent = t(item.status === 'failed' ? 'chat_failed' : 'chat_pending'); entry.append(status);
+            }
+            log.append(entry);
         }
-        combinePresets();
-    }));
-    filterPresets();
-    $('#run-model').addEventListener('change', () => { $('#thinking-control').hidden = !getModels().find(m => m.id === $('#run-model').value)?.reasoning; estimate(); });
-    $('#thinking-level').addEventListener('change', estimate);
-    $('#chunk-size').addEventListener('input', estimate);
-    function confirmModelChoice() {
-        const select = $('#run-model');
-        const recommended = getModels().find(model => model.id === select.dataset.defaultModel);
-        if (!recommended || select.value === recommended.id) return Promise.resolve(true);
-        const selected = getModels().find(model => model.id === select.value);
-        const dialog = $('#model-warning-dialog'), keep = $('#keep-selected-model');
-        keep.checked = false;
-        $('#warning-selected-model').textContent = selected?.name || select.value;
-        $('#warning-default-model').textContent = recommended.name;
-        return new Promise(resolve => {
-            const start = $('#confirm-model-start'), cancel = $('#cancel-model-warning');
-            const finish = confirmed => {
-                if (confirmed && !keep.checked) {
-                    select.value = recommended.id;
-                    select.dispatchEvent(new Event('change'));
-                }
-                dialog.close();
-                start.removeEventListener('click', accept); cancel.removeEventListener('click', decline);
-                dialog.removeEventListener('cancel', escape);
-                resolve(confirmed);
-            };
-            const accept = () => finish(true), decline = () => finish(false);
-            const escape = event => { event.preventDefault(); finish(false); };
-            start.addEventListener('click', accept); cancel.addEventListener('click', decline);
-            dialog.addEventListener('cancel', escape);
-            dialog.showModal(); start.focus();
-        });
+        syncChoices(); if (nearBottom) log.scrollTop = log.scrollHeight;
+        $('#chat-send').disabled = messages.some(item => item.status === 'pending');
     }
-    function chooseRunScope() {
-        if (!state?.run?.completed_chunks) return Promise.resolve('unfinished');
-        const dialog = $('#run-scope-dialog');
-        const unfinished = $('[data-run-scope="unfinished"]', dialog);
-        unfinished.disabled = state.run.completed_chunks >= state.run.total_chunks;
-        return new Promise(resolve => {
-            const finish = scope => {
-                dialog.close(); dialog.removeEventListener('click', click); dialog.removeEventListener('cancel', cancel);
-                resolve(scope);
-            };
-            const click = event => { const button = event.target.closest('[data-run-scope]'); if (button && !button.disabled) finish(button.dataset.runScope); };
-            const cancel = event => { event.preventDefault(); finish('cancel'); };
-            dialog.addEventListener('click', click); dialog.addEventListener('cancel', cancel);
-            dialog.showModal();
-            (unfinished.disabled ? $('[data-run-scope="all"]', dialog) : unfinished).focus();
-        });
-    }
+    $('#chat-form').addEventListener('submit', async event => {
+        event.preventDefault(); $('#chat-send').disabled = true;
+        try {
+            await request(`${base}/chat`, 'POST', {content: $('#chat-input').value});
+            $('#chat-input').value = ''; $('#chat-status').textContent = ''; await refresh(true);
+        } catch (error) { $('#chat-status').textContent = error.message; }
+        finally { $('#chat-send').disabled = state?.chat?.some(item => item.status === 'pending') || false; }
+    });
+    $('#retry-metadata').addEventListener('click', async () => {
+        try { await request(`${base}/metadata/retry`, 'POST', {}); await refresh(true); }
+        catch (error) { message(error.message, true); }
+    });
     $('#run-form').addEventListener('submit', async event => {
         event.preventDefault(); if (busy || !settings.reportValidity()) return;
-        busy = true; $('#run-button').disabled = true; $('#cancel-setup').disabled = true;
+        busy = true; $('#run-button').disabled = true;
         $('.setup-grid', setup).inert = true; $('#setup-error').classList.add('hidden');
         try {
-            const scope = reviewTarget ? 'block' : await chooseRunScope();
+            const scope = reviewTarget ? 'block' : $('#run-scope').value;
             if (scope === 'cancel') return;
-            if (!await confirmModelChoice()) return;
             await finishEditing();
             const data = Object.fromEntries(new FormData(settings));
-            data.italicize = $$('.preset-checkbox:checked').some(box => box.dataset.presetKey === 'italics');
-            data.learn = true; data.prompt_version = book.promptVersion;
+            data.italicize = /italic|italik/i.test(data.prompt);
+            data.learn = false; data.prompt_version = book.promptVersion;
             if (reviewTarget) {
                 await request(`${base}/chunks/${reviewTarget}/review`, 'POST', {
-                    prompt: data.prompt, context: data.context, italicize: data.italicize,
+                    prompt: data.prompt, context: data.context, italicize: data.italicize, editorial_chat: true,
                     model: $('#run-model').value, reasoning_effort: $('#thinking-level').value,
                     revision: blocks.get(reviewTarget).revision,
                 });
@@ -373,15 +346,15 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
             } else {
                 const saved = await request(base, 'PATCH', data);
                 book.promptVersion = saved.prompt_version; settingsDirty = false;
-                await request(`${base}/run`, 'POST', { scope, model: $('#run-model').value,
+                await request(`${base}/run`, 'POST', { scope, editorial_chat: true, model: $('#run-model').value,
                     reasoning_effort: $('#thinking-level').value, chunk_size: Number($('#chunk-size').value), version: book.version });
             }
-            setup.close(); signature = ''; await refresh(true);
+            reviewTarget = null; configureSetup(); signature = ''; await refresh(true);
         } catch (error) {
             $('#setup-error').textContent = error.message; $('#setup-error').classList.remove('hidden');
             $('#setup-error').scrollIntoView({ block: 'nearest' });
         } finally {
-            busy = false; $('#run-button').disabled = false; $('#cancel-setup').disabled = false; $('.setup-grid', setup).inert = false;
+            busy = false; $('#run-button').disabled = false; $('.setup-grid', setup).inert = false; renderProgress();
         }
     });
     async function learn(event) {
@@ -416,6 +389,6 @@ export function startBookEditor({ $, $$, request, t, getModels }) {
         if (dirty || settingsDirty) { event.preventDefault(); event.returnValue = t('unsaved'); }
     });
     window.addEventListener('queue-updated', renderProgress);
-    if (book.needsSetup) setup.showModal();
+
     return { poll: () => refresh() };
 }

@@ -96,9 +96,9 @@ class OpenRouter
         return $prices[$model] ?? null;
     }
 
-    public function editingBudget(array $model, string $input, string $system, string $level = 'low'): array
+    public function editingBudget(array $model, string $input, string $system, string $level = 'low', ?int $visibleTokens = null): array
     {
-        $visible = max(1024, (int) ceil(mb_strlen($input) / 2));
+        $visible = $visibleTokens ?? max(1024, (int) ceil(mb_strlen($input) / 2));
         $thinking = 0; $reasoning = [];
         $capabilities = $model['reasoning'] ?? null;
         if (is_array($capabilities)) {

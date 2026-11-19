@@ -8,7 +8,7 @@ import { chunkStyles, sliceStyles } from '../resources/js/source-styles.js';
 
 class Element {
     constructor() {
-        this.children = []; this.nodes = new Map(); this.listeners = {}; this.dataset = {}; this.value = '';
+        this.children = []; this.nodes = new Map(); this.listeners = {}; this.dataset = {}; this.value = ''; this.options = [{}];
         const classes = new Set();
         this.classList = { add: c => classes.add(c), remove: c => classes.delete(c), contains: c => classes.has(c),
             toggle(c, on) { if (on) classes.add(c); else classes.delete(c); } };
@@ -18,13 +18,14 @@ class Element {
     replaceChildren(...children) { this.children = []; this.append(...children); }
     setAttribute(key, value) { this[key] = value; }
     addEventListener(event, fn) { this.listeners[event] = fn; }
+    scrollIntoView() { this.scrolled = true; }
     showModal() { this.open = true; }
     close() { this.open = false; }
     focus() {}
     remove() {}
 }
 
-function harness() {
+function harness(chat = []) {
     const root = new Element();
     let quill;
     class Quill {
@@ -42,6 +43,11 @@ function harness() {
         segments:[{type:'equal', before:`Block ${id}`, after:`Block ${id}`, status:'accepted'}]}));
     const calls = []; let failSave = false;
     const $ = (selector, parent = root) => parent.querySelector(selector);
+    const choices = () => {
+        const found = [];
+        const walk = node => { if (node.className === 'chat-choice') found.push(node); node.children.forEach(walk); };
+        walk($('#chat-messages')); return found;
+    };
     const context = vm.createContext({ Quill, chunkText, changeKey, italicOps, italicRanges, readItalics, chunkStyles, sliceStyles,
         appendFormatted() {}, sliceRanges: () => [], setInterval() {}, URLSearchParams,
         document: {createElement: () => new Element(), addEventListener() {}},
@@ -50,7 +56,7 @@ function harness() {
     const source = readFileSync(new URL('../resources/js/book-editor.js', import.meta.url), 'utf8')
         .replace(/^import .*;\r?\n/gm, '').replace('export function startBookEditor', 'function startBookEditor');
     vm.runInContext(source, context);
-    const editor = context.startBookEditor({ $, $$: () => [], t:key=>key, getModels:()=>[], request:async (url, method, data) => {
+    const editor = context.startBookEditor({ $, $$: selector => selector === '.chat-choice' ? choices() : [], t:key=>key, getModels:()=>[], request:async (url, method, data) => {
         calls.push({url, method, data});
         if (method === 'PUT') {
             if (failSave) throw Error('Save failed');
@@ -58,10 +64,10 @@ function harness() {
             chunk.revision++; chunk.segments = [{type:'equal', before:data.text, after:data.text, status:'accepted'}];
             return {version:2, chunk:structuredClone(chunk)};
         }
-        return {version:2, tokens:{}, chunks:structuredClone(chunks), chunk_count:2,
+        return {version:2, prompt:'', chat, tokens:{}, chunks:structuredClone(chunks), chunk_count:2,
             run:{id:1,status:'cancelled',completed_chunks:1,total_chunks:2}, queue:{}, metadata_status:'complete'};
     }});
-    return {editor, $, calls, quill:()=>quill, fail:()=>{failSave=true;}, cards:()=>$('#book-blocks').children};
+    return {editor, $, calls, choices, quill:()=>quill, fail:()=>{failSave=true;}, cards:()=>$('#book-blocks').children};
 }
 
 test('switching blocks saves the previous editor and returns it to review', async () => {
@@ -82,7 +88,8 @@ test('switching blocks saves the previous editor and returns it to review', asyn
     assert.equal(second.querySelector('[data-review]').classList.contains('hidden'), false);
     assert.equal(h.$('#block-edit-panel').parent, h.$('#editor-parking'));
     await first.querySelector('[data-redo]').listeners.click();
-    assert.equal(h.$('#setup-dialog').open, true);
+    assert.equal(h.$('#setup-panel').scrolled, true);
+    assert.equal(h.$('#setup-dialog').open, undefined);
     assert.equal(h.$('#setup-hint').textContent, 'block_review_hint');
 });
 
@@ -95,4 +102,22 @@ test('a failed save keeps the original block open and retains the unsaved text',
     assert.equal(h.$('#block-edit-panel').parent, first.querySelector('[data-edit-slot]'));
     assert.equal(first.querySelector('[data-review]').classList.contains('hidden'), true);
     assert.equal(second.querySelector('[data-review]').classList.contains('hidden'), false);
+});
+
+
+test('checkbox plan preserves custom instructions and survives polling without auto-starting', async () => {
+    const h = harness([{id:1, role:'assistant', content:'Opening analysis', status:'complete', suggestions:[
+        {label:'Grammar', instruction:'Fix grammar only.'}, {label:'Clarity', instruction:'Clarify long sentences.'},
+    ]}]);
+    await h.editor.poll();
+    h.$('#book-prompt').value = 'Preserve my voice.';
+    const [grammar, clarity] = h.choices();
+    grammar.checked = true; grammar.listeners.change();
+    assert.equal(h.$('#book-prompt').value, 'Preserve my voice.\n\nFix grammar only.');
+    assert.equal(clarity.checked, false);
+    await h.editor.poll();
+    assert.equal(h.$('#book-prompt').value, 'Preserve my voice.\n\nFix grammar only.');
+    grammar.checked = false; grammar.listeners.change();
+    assert.equal(h.$('#book-prompt').value, 'Preserve my voice.');
+    assert.equal(h.calls.some(call => call.method === 'POST'), false);
 });

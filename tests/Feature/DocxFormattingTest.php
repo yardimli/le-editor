@@ -39,6 +39,31 @@ class DocxFormattingTest extends TestCase
         $zip->addFromString('[Content_Types].xml',$types);$zip->close();return $path;
     }
 
+    public function test_automatic_color_overrides_heading_color_and_repairs_cached_imports(): void
+    {
+        $path = $this->source();
+        try {
+            $zip = new ZipArchive; $zip->open($path);
+            $styles = str_replace('<w:sz w:val="36"/>', '<w:sz w:val="36"/><w:color w:val="2F5496"/>', $zip->getFromName('word/styles.xml'));
+            $zip->addFromString('word/styles.xml', $styles);
+            $xml = str_replace('<w:t>Chapter One</w:t>', '<w:rPr><w:color w:val="auto"/><w:b w:val="0"/><w:sz w:val="24"/></w:rPr><w:t>Chapter One</w:t>', $zip->getFromName('word/document.xml'));
+            $zip->addFromString('word/document.xml', $xml); $zip->close();
+            $import = app(Docx::class)->import($path);
+            $attrs = $import['formatting']['runs'][0]['attributes'];
+            $this->assertSame('auto', $attrs['color']);
+            $this->assertFalse($attrs['bold']);
+            $this->assertSame('12pt', $attrs['size']);
+            $this->assertSame(1, $attrs['header']);
+            $cached = $import['formatting'];
+            $cached['runs'][0]['attributes']['color'] = '#2F5496';
+            $book = new Book(['original_formatting' => $cached, 'original_path' => 'unavailable.docx']);
+            $recovered = app(SourceFormatting::class)->forBook($book);
+            $this->assertSame('auto', $recovered['runs'][0]['attributes']['color']);
+            $this->assertSame($cached, $book->original_formatting);
+            $this->assertSame($cached['runs'][1], $recovered['runs'][1]);
+        } finally { unlink($path); }
+    }
+
     public function test_import_skips_direct_and_inherited_hidden_text_without_offset_gaps(): void
     {
         $path = $this->source(); $output = null;

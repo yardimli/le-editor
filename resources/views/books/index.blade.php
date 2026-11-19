@@ -5,7 +5,7 @@
     <section class="grid sm:grid-cols-2 xl:grid-cols-3 gap-5">
         @forelse($books as $book)
             <article class="book-card group"><a href="{{ route('books.show', $book) }}" class="block">
-                <div class="book-cover"><span>{{ strtoupper($book->language) }}</span><h2>{{ $book->title }}</h2><small>LE / {{ str_pad($book->id, 3, '0', STR_PAD_LEFT) }}</small></div>
+                <div class="book-cover"><span>{{ strtoupper($book->language) }}</span><h2>{{ $book->title }}</h2><small>@if($book->author){{ $book->author }} · @endif{{ __('editor.'.$book->editorial_genre) }}</small><small>LE / {{ str_pad($book->id, 3, '0', STR_PAD_LEFT) }}</small></div>
                 <div class="p-5"><h3 class="font-semibold truncate">{{ $book->title }}</h3><p class="muted text-xs mt-2">{{ number_format(app(\App\Services\TextEditor::class)->words($book->text)) }} {{ __('editor.words') }} · {{ $book->updated_at->format('d.m.Y') }}</p><span class="text-accent text-sm inline-block mt-5">{{ __('editor.open') }} ↗</span></div>
             </a><div class="px-5 pb-5 flex flex-wrap gap-3 text-xs">
                 <button type="button" class="text-accent" data-analysis-book="{{ $book->id }}" data-analysis-kind="summary">{{ __('editor.'.($book->has_summary ? 'read_summary' : 'create_summary')) }}</button>
@@ -21,7 +21,7 @@
                 <form action="{{ route('books.details', $book) }}" method="POST" class="space-y-3 mt-3">@csrf @method('PATCH')
                     <input type="hidden" name="version" value="{{ $book->version }}">
                     <label class="block">{{ __('editor.title') }}<input name="title" value="{{ $book->title }}" required maxlength="255"></label>
-                    <label class="block">{{ __('editor.language') }}<select name="language"><option value="tr" @selected($book->language === 'tr')>Türkçe</option><option value="en" @selected($book->language === 'en')>English</option></select></label>
+                    <label class="block">{{ __('editor.language') }}<input name="language" value="{{ $book->language }}" minlength="2" maxlength="2" required></label>
                     <label class="block">{{ __('editor.context') }}<textarea name="context" rows="3" maxlength="10000">{{ $book->context }}</textarea></label>
                     <label class="block">{{ __('editor.chunk_size') }}<input name="chunk_size" type="number" min="100" max="10000" value="{{ $book->chunk_size }}" required></label>
                     <div class="dialog-actions"><button class="button">{{ __('editor.save_settings') }}</button><button type="button" class="button-secondary" data-close-dialog>{{ __('editor.close') }}</button></div>

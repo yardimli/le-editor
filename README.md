@@ -6,13 +6,13 @@ A Turkish-first, bilingual AI book editor built with Laravel 10, Breeze, Blade, 
 
 - Turkish and English interfaces; warm paper and dark themes.
 - Breeze registration, authentication, password reset and account management.
-- DOCX import; title and language inferred from the first 2,000 words and editable afterward.
+- DOCX import; title, author, language and fiction/nonfiction classification inferred from the first 5,000 words. An editorial chat suggests a checkbox plan; users can ask follow-up questions and edit the chosen instructions before starting.
 - Ten bilingual presets covering fiction, nonfiction, academic writing and poetry at different editing levels. Combine presets into a book-specific prompt; create, duplicate, edit and delete personal presets.
 - Encrypted per-user OpenRouter keys; optional server-key development mode.
 - Cached model discovery using the server key. Free models are excluded and output prices are filtered by environment limits.
 - Queued editing in adjustable word-sized chunks (default 1,000), with paragraph boundaries preserved where possible. The model returns plain prose; `jfcherng/php-diff` computes changes.
 - Inline deletions/insertions, accept/reject/undo controls, pending-change navigation. Keyboard shortcuts: Alt+Up / Alt+Down.
-- A persistent editorial footer with processed-chunk progress and Pause, Resume and Restart controls. Completed suggestions remain; untouched chunks retain their source text. Metadata inference still uses a modal.
+- A persistent editorial footer with processed-chunk progress and Pause, Resume and Restart controls. Completed suggestions remain; untouched chunks retain their source text. The document-side chat receives editorial comments as each block completes. Model and thinking preferences are configured in Settings.
 - Optional prompt learning: review decisions are collected without LLM calls. After more than 50 suggestions, a dismissible footer hint offers to update the prompt. Learning runs only when requested, in batches of up to 50 decisions; shared presets remain unchanged.
 - Reruns materialize accepted suggestions, archive the old review and use the latest prompt with a newly chosen model/chunk size.
 - Chunk navigation with Previous/Next, a clickable 1/N jump control and processed-book progress. Only the selected chunk is fetched.
@@ -288,7 +288,7 @@ The sticky status band provides chunk navigation, Edit/Review, Editorial setup a
 
 Each chunk has a `revision` and `ai_edit_count`. Only successfully committed model outputs increment the AI counter; manual edits do not. Restart opens setup and creates a new pass from accepted/manual text. With the same chunk size, boundaries, original text and counts are carried forward. Changing the chunk size creates new chunk identities/counters and maps their baselines back to the original imported text. Existing completed chunks are initialized with a count of one by the migration because older call counts were not recorded.
 
-Processed chunks remain editable while other chunks are running. Unprocessed chunks have a clear label and are read-only until their result arrives. Source snapshots, not rich-text HTML, are stored: Quill supports plain text and real italics. Italic spans are stored as Unicode ranges alongside review segments; arbitrary rich-text HTML is not stored. Export includes accepted and manual edits by default, with pending suggestions included only when explicitly selected. Export revision authors are labelled `LE Editor`; they are not a keystroke-by-keystroke audit trail.
+Processed chunks remain editable while other chunks are running. Unprocessed chunks have a clear label and are read-only until their result arrives. Source snapshots, not rich-text HTML, are stored: Quill supports plain text and real italics. Italic spans are stored as Unicode ranges alongside review segments; arbitrary rich-text HTML is not stored. Export includes accepted and manual edits by default, with pending suggestions included only when explicitly selected. Export revision authors use the **Tracked-change author** value in Settings (default `LE Editor`); they are not a keystroke-by-keystroke audit trail.
 
 A rerun discards pending/rejected suggestions from the new draft. Exporting pending suggestions never accepts them in the app. The original DOCX is retained privately until the book/account is deleted.
 

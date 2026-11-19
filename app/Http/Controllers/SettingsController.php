@@ -15,6 +15,8 @@ class SettingsController extends Controller
         $data = $request->validate([
             'openrouter_api_key' => 'nullable|string|max:512',
             'locale' => 'required|in:tr,en', 'theme' => 'required|in:light,dark',
+            'revision_author' => ['sometimes', 'required', 'string', 'max:255', 'not_regex:/[\x00-\x1F\x7F]/u'],
+            'reasoning_effort' => 'sometimes|in:low,medium,high',
             'default_model' => 'nullable|string|max:255', 'remove_key' => 'nullable|boolean',
         ]);
         if (!$request->filled('openrouter_api_key')) { unset($data['openrouter_api_key']); }

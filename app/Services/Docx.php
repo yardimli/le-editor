@@ -57,7 +57,7 @@ class Docx
     }
 
     /** Generate an OOXML package with genuine w:ins/w:del revisions. */
-    public function export(string $original, string $current, string $title, array $italics = [], ?string $sourcePath = null, string $language = 'tr'): string
+    public function export(string $original, string $current, string $title, array $italics = [], ?string $sourcePath = null, string $language = 'tr', string $revisionAuthor = 'LE Editor'): string
     {
         $source = null; $format = ['runs' => [], 'paragraphs' => []];
         if ($sourcePath) {
@@ -83,7 +83,7 @@ class Docx
             }
             return $xml;
         };
-        $formatted = function (string $text, int $offset, bool $inserted = false, bool $deleted = false) use ($run, $sourceSlice, $mappedSlice, $italicSlice, $styles): string {
+        $formatted = function (string $text, int $offset, bool $inserted = false, bool $deleted = false) use ($run, $sourceSlice, $mappedSlice, $italicSlice, $styles, $revisionAuthor): string {
             $spans = ($deleted ? $sourceSlice : $mappedSlice)($offset, mb_strlen($text));
             $ranges = $deleted ? $styles->italicRanges($spans) : array_map(fn ($s) => [$s['start'], $s['end']], $italicSlice($offset, mb_strlen($text)));
             $bounds = [0, mb_strlen($text)];
@@ -105,7 +105,7 @@ class Docx
                     $em = $prDoc->createElementNS(self::NS, 'w:i'); if (!$italic) $em->setAttributeNS(self::NS, 'w:val', '0'); $pr->appendChild($em);
                     if (!$inserted) {
                         $change = $prDoc->createElementNS(self::NS, 'w:rPrChange');
-                        foreach (['id' => '0', 'author' => 'LE Editor', 'date' => gmdate('Y-m-d\TH:i:s\Z')] as $key => $value) $change->setAttributeNS(self::NS, 'w:'.$key, $value);
+                        foreach (['id' => '0', 'author' => $revisionAuthor, 'date' => gmdate('Y-m-d\TH:i:s\Z')] as $key => $value) $change->setAttributeNS(self::NS, 'w:'.$key, $value);
                         $change->appendChild($prior); $pr->appendChild($change);
                     }
                     $properties = $prDoc->saveXML($pr);
@@ -180,7 +180,7 @@ class Docx
                     $markXml = '';
                     if ($i >= $a2 - $a1 || $i >= $b2 - $b1) {
                         $mark = $i >= $a2 - $a1 ? 'ins' : 'del';
-                        $markXml = '<w:'.$mark.' w:id="'.(++$id).'" w:author="LE Editor" w:date="'.$date.'"/>';
+                        $markXml = '<w:'.$mark.' w:id="'.(++$id).'" w:author="'.$escape($revisionAuthor).'" w:date="'.$date.'"/>';
                     }
                     $sourceIndex = min($a1 + $i, max(0, count($old) - 1));
                     $body .= $openParagraph($sourceIndex, $markXml);
@@ -190,7 +190,7 @@ class Docx
                         if ($segment['type'] === 'equal') { $body .= $formatted($segment['after'], $position); $position += mb_strlen($segment['after']); $oldPosition += mb_strlen($segment['before']); continue; }
                         foreach (['del' => 'before', 'ins' => 'after'] as $kind => $key) {
                             if ($segment[$key] !== '') {
-                                $body .= '<w:'.$kind.' w:id="'.(++$id).'" w:author="LE Editor" w:date="'.$date.'">'
+                                $body .= '<w:'.$kind.' w:id="'.(++$id).'" w:author="'.$escape($revisionAuthor).'" w:date="'.$date.'">'
                                     .($kind === 'del' ? $formatted($segment[$key], $oldPosition, false, true) : $formatted($segment[$key], $position, true)).'</w:'.$kind.'>';
                             }
                         }

@@ -8,7 +8,22 @@ class SourceFormatting
 {
     public function forBook(Book $book): array
     {
-        if ($book->original_formatting !== null) return $book->original_formatting;
+        if ($book->original_formatting !== null) {
+            $format = $book->original_formatting;
+            // Older imports ignored explicit automatic color, but kept the run XML.
+            // Repair the display attributes without changing manuscript text or reviews.
+            foreach ($format['runs'] ?? [] as $index => $span) {
+                $xml = $span['xml'] ?? '';
+                if (!str_contains($xml, 'auto') || str_contains($xml, '<!DOCTYPE')) continue;
+                $doc = new \DOMDocument;
+                if (!@$doc->loadXML($xml, LIBXML_NONET)) continue;
+                $xp = new \DOMXPath($doc); $xp->registerNamespace('w', OoxmlFormatting::NS);
+                if ($xp->query('/w:rPr/w:color[@w:val="auto"]')->length) {
+                    $format['runs'][$index]['attributes']['color'] = 'auto';
+                }
+            }
+            return $format;
+        }
         if (!Storage::exists($book->original_path)) return [];
         $import = app(Docx::class)->import(Storage::path($book->original_path));
         if ($import['text'] !== $book->original_text) $import = app(Docx::class)->import(Storage::path($book->original_path), true);

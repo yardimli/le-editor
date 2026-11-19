@@ -35,6 +35,7 @@ export function italicOps(text, ranges, styles = []) {
         const source=styles.find(s=>s.start<=index&&s.end>index)?.attributes||{};
         if(char==='\n'){add(char,lineHeader?{header:lineHeader}:{});lineHeader=false;return;}
         const attrs={...source};delete attrs.header;delete attrs.italic;
+        if(attrs.color==='auto')attrs.color='var(--ink)';
         if(source.header)lineHeader=source.header;
         if(ranges.some(([a,b])=>a<=index&&b>index))attrs.italic=true;
         add(char,attrs);

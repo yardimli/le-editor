@@ -24,7 +24,7 @@ class BookController extends Controller
     public function details(Request $request, Book $book)
     {
         $this->owner($book);
-        $data = $request->validate(['title' => 'required|string|max:255', 'language' => 'required|in:tr,en',
+        $data = $request->validate(['title' => 'required|string|max:255', 'language' => 'required|string|size:2',
             'context' => 'nullable|string|max:10000', 'chunk_size' => 'required|integer|min:100|max:10000',
             'version' => 'required|integer']);
         DB::transaction(function () use ($book, $data) {
@@ -35,6 +35,27 @@ class BookController extends Controller
             $locked->update($data);
         });
         return back();
+    }
+
+    public function chat(Request $request, Book $book)
+    {
+        $this->owner($book);
+        $data = $request->validate(['content' => 'required|string|max:4000']);
+        DB::transaction(function () use ($book, $data) {
+            $locked = Book::lockForUpdate()->findOrFail($book->id);
+            abort_if($locked->editorialMessages()->where('status', 'pending')->exists(), 409, __('editor.chat_pending'));
+            $locked->editorialMessages()->create(['role' => 'user', 'content' => $data['content'], 'status' => 'pending']);
+        });
+        app(BrowserQueue::class)->resume(auth()->id(), false);
+        return response()->json(['ok' => true]);
+    }
+
+    public function retryMetadata(Book $book)
+    {
+        $this->owner($book);
+        Book::whereKey($book->id)->where('metadata_status', 'failed')->update(['metadata_status' => 'pending', 'metadata_error' => null]);
+        app(BrowserQueue::class)->resume(auth()->id(), false);
+        return response()->json(['ok' => true]);
     }
 
     public function originalDownload(Book $book)
@@ -122,7 +143,7 @@ class BookController extends Controller
         $this->owner($book);
         $data = $request->validate(['revision' => 'required|integer|min:1', 'prompt' => 'required|string|max:10000',
             'context' => 'nullable|string|max:10000', 'model' => 'required|string|max:255',
-            'reasoning_effort' => 'required|in:low,medium,high', 'italicize' => 'required|boolean']);
+            'editorial_chat' => 'sometimes|boolean', 'reasoning_effort' => 'required|in:low,medium,high', 'italicize' => 'required|boolean']);
         try { $api->key($request->user()); $api->model($data['model']); }
         catch (\Throwable $e) { throw ValidationException::withMessages(['model' => __('editor.model_unavailable')]); }
         DB::transaction(function () use ($book, $chunk, $data) {
@@ -132,7 +153,8 @@ class BookController extends Controller
             abort_unless($chunk->editing_run_id === $locked->active_run_id, 404);
             $chunk = Chunk::lockForUpdate()->findOrFail($chunk->id);
             abort_unless($chunk->revision === $data['revision'], 409, __('editor.save_conflict'));
-            $settings = $data; unset($settings['revision']);
+            $settings = $data; unset($settings['revision'], $settings['editorial_chat']);
+            if ($data['editorial_chat'] ?? false) $locked->update(['editorial_plan' => $locked->editorial_plan ?? []]);
             $chunk->update(['review_settings' => $settings, 'review_error' => null, 'revision' => $chunk->revision + 1]);
             $user->forceFill(['llm_paused' => false, 'llm_lease' => null, 'llm_lease_until' => null])->save();
         });
@@ -175,6 +197,8 @@ class BookController extends Controller
             'word_count' => $editor->words($book->text),
             'title' => $book->title, 'language' => $book->language,
             'metadata_status' => $book->metadata_status,
+            'author' => $book->author,
+            'chat' => $book->editorialMessages()->orderBy('id')->get(['id', 'role', 'content', 'suggestions', 'status']),
             'learning_hint' => $book->learn && !$book->learning_hint_dismissed && $waiting > 50,
             'learning_awaiting' => $waiting, 'learning_requested' => (bool) $book->learning_requested,
             'learning_failed' => Feedback::where('book_id', $book->id)->where('status', 'failed')->count(),
@@ -271,7 +295,7 @@ class BookController extends Controller
     {
         $this->owner($book);
         $data = $request->validate([
-            'title' => 'required|string|max:255', 'language' => 'required|in:tr,en',
+            'title' => 'required|string|max:255', 'language' => 'required|string|size:2',
             'prompt' => 'nullable|string|max:10000', 'context' => 'nullable|string|max:10000',
             'editorial_genre' => 'sometimes|in:fiction,nonfiction', 'italicize' => 'sometimes|boolean',
             'learn' => 'sometimes|boolean', 'prompt_version' => 'required|integer',
@@ -310,7 +334,7 @@ class BookController extends Controller
     public function run(Request $request, Book $book, OpenRouter $api, TextEditor $editor)
     {
         $this->owner($book);
-        $data = $request->validate(['scope' => 'sometimes|in:unfinished,all', 'reasoning_effort' => 'sometimes|in:low,medium,high', 'model' => 'required|string|max:255', 'chunk_size' => 'required|integer|min:100|max:10000', 'version' => 'required|integer']);
+        $data = $request->validate(['editorial_chat' => 'sometimes|boolean', 'scope' => 'sometimes|in:unfinished,all', 'reasoning_effort' => 'sometimes|in:low,medium,high', 'model' => 'required|string|max:255', 'chunk_size' => 'required|integer|min:100|max:10000', 'version' => 'required|integer']);
         try { $api->key($request->user()); $api->model($data['model']); }
         catch (\Throwable $e) { throw ValidationException::withMessages(['model' => __('editor.model_unavailable')]); }
         DB::transaction(function () use ($book, $data, $editor) {
@@ -318,6 +342,7 @@ class BookController extends Controller
             $this->idle($locked);
             abort_unless($locked->version === $data['version'], 409, __('editor.save_conflict'));
             abort_unless(trim($locked->prompt ?? '') !== '', 422, __('editor.prompt_required'));
+            if ($data['editorial_chat'] ?? false) $locked->update(['editorial_plan' => $locked->editorial_plan ?? []]);
             $existing = $locked->activeRun()->lockForUpdate()->first();
             if (($data['scope'] ?? 'all') === 'unfinished' && $existing) {
                 // Keep chunk identities, reviews and manual edits. Only future API calls use the new settings.
@@ -391,6 +416,7 @@ class BookController extends Controller
             $locked = Book::lockForUpdate()->findOrFail($book->id);
             $run = $locked->activeRun()->lockForUpdate()->first();
             abort_unless($run && in_array($run->status, ['failed', 'cancelled', 'queued', 'running']), 409);
+            abort_unless(trim($run->prompt ?? '') !== '', 422, __('editor.prompt_required'));
             $run->update(['status' => 'queued', 'error' => null]);
         });
         app(BrowserQueue::class)->resume(auth()->id(), false);
@@ -463,7 +489,7 @@ class BookController extends Controller
     {
         $this->owner($book);
         set_time_limit(240);
-        $path = $docx->export($book->original_text, $editor->rendered($book, true), $book->title, app(\App\Services\Italics::class)->book($book, true), Storage::exists($book->original_path) ? Storage::path($book->original_path) : null, $book->language);
+        $path = $docx->export($book->original_text, $editor->rendered($book, true), $book->title, app(\App\Services\Italics::class)->book($book, true), Storage::exists($book->original_path) ? Storage::path($book->original_path) : null, $book->language, $request->user()->revision_author ?? 'LE Editor');
         return response()->download($path, app(\App\Services\ExportFilename::class)->next($book),
             ['Content-Type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])->deleteFileAfterSend();
     }
@@ -474,7 +500,7 @@ class BookController extends Controller
         set_time_limit(240);
         $downloads = app(\App\Services\PreparedDownload::class);
         $downloads->cleanup(auth()->id());
-        $path = $docx->export($book->original_text, $editor->rendered($book, true), $book->title, app(\App\Services\Italics::class)->book($book, true), Storage::exists($book->original_path) ? Storage::path($book->original_path) : null, $book->language);
+        $path = $docx->export($book->original_text, $editor->rendered($book, true), $book->title, app(\App\Services\Italics::class)->book($book, true), Storage::exists($book->original_path) ? Storage::path($book->original_path) : null, $book->language, $request->user()->revision_author ?? 'LE Editor');
         $token = $downloads->store($book, $path, app(\App\Services\ExportFilename::class)->next($book));
         return response()->json(['url'=>route('books.prepared-download', [$book, $token])]);
     }

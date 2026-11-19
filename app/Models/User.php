@@ -24,6 +24,8 @@ class User extends Authenticatable
         'locale',
         'theme',
         'default_model',
+        'reasoning_effort',
+        'revision_author',
         'openrouter_api_key',
     ];
 

@@ -83,6 +83,8 @@ class BrowserQueue
         if ($book = (clone $books)->where('metadata_status', 'pending')->orderBy('id')->first()) {
             return ['kind' => 'metadata', 'book_id' => $book->id, 'title' => $book->title];
         }
+        $message = \App\Models\EditorialMessage::whereIn('book_id', (clone $books)->select('id'))->where('status', 'pending')->orderBy('id')->first();
+        if ($message) return ['kind' => 'chat', 'book_id' => $message->book_id, 'title' => $message->book->title, 'message_id' => $message->id];
         $run = EditingRun::whereIn('id', (clone $books)->select('active_run_id'))
             ->whereIn('status', ['queued', 'running'])->orderBy('id')->first();
         if ($run) {
@@ -115,6 +117,7 @@ class BrowserQueue
             $task = $this->next($userId);
             if ($task) {
                 $job = match ($task['kind']) {
+                    'chat' => new \App\Jobs\RespondEditorialChat($task['message_id'], $token),
                     'metadata' => new InferBookMetadata($task['book_id'], $token),
                     'editing' => new EditChunk($task['run_id'], $token, $task['chunk_id'] ?? null),
                     'learning' => new LearnPrompt($task['book_id'], $token),

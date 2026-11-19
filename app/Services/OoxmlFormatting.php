@@ -52,7 +52,7 @@ class OoxmlFormatting
                 case 'i': $attrs['italic'] = !in_array($value, ['0', 'false', 'off']); break;
                 case 'u': $attrs['underline'] = !in_array($value, ['none', '0', 'false']); break;
                 case 'strike': $attrs['strike'] = !in_array($value, ['0', 'false', 'off']); break;
-                case 'color': if (preg_match('/^[a-f0-9]{6}$/i', $value)) $attrs['color'] = '#'.$value; break;
+                case 'color': if ($value === 'auto') $attrs['color'] = 'auto'; elseif (preg_match('/^[a-f0-9]{6}$/i', $value)) $attrs['color'] = '#'.$value; break;
                 case 'sz': if (is_numeric($value)) $attrs['size'] = ((float) $value / 2).'pt'; break;
                 case 'rFonts': $font = $node->getAttributeNS(self::NS, 'ascii'); if ($font) $attrs['font'] = $font; break;
                 case 'vertAlign': if (in_array($value, ['superscript', 'subscript'])) $attrs['script'] = $value === 'superscript' ? 'super' : 'sub'; break;

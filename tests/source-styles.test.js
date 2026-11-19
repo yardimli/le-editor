@@ -5,7 +5,7 @@ import {italicOps,italicRanges,applyItalics,readItalics} from '../resources/js/i
 import {draftSegments} from '../resources/js/draft-review.js';
 
 test('heading rendering respects explicit bold-off while preserving font and size',()=>{
- for(const [bold,weight] of [[false,'400'],[true,'700'],[undefined,'700']]){
+ for(const [bold,weight] of [[false,'400'],[true,'700'],[undefined,undefined]]){
   const node={style:{}};
   styleNode(node,{header:2,bold,size:'12pt',font:'Times New Roman'});
   assert.equal(node.style.fontWeight,weight);
@@ -62,4 +62,19 @@ test('pure insertions inherit the source font in review spans and Quill ops',()=
  }
  assert.deepEqual(projectStyles('İlk','İlk yeni',spans),[{start:0,end:3,attributes},{start:3,end:8,attributes}]);
  assert.deepEqual(annotateStyles([insert],[])[0].styles,[]);
+});
+
+
+test('automatic color resets heading color in review and edit mode',()=>{
+ const attrs={header:1,color:'auto',size:'12pt'};
+ const node={style:{}};
+ styleNode(node,attrs);
+ assert.equal(node.style.color,'var(--ink)');
+ assert.equal(node.style.fontWeight,undefined);
+ const ops=italicOps('Body',[],[{start:0,end:4,attributes:attrs}]);
+ assert.equal(ops[0].attributes.color,'var(--ink)');
+ const heading={style:{}};
+ styleNode(heading,{color:'#2F5496',bold:true});
+ assert.equal(heading.style.color,'#2F5496');
+ assert.equal(heading.style.fontWeight,'700');
 });

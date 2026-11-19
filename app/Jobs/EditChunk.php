@@ -71,11 +71,24 @@ class EditChunk implements ShouldQueue
             $system .= "\nInline formatting: preserve existing <le-italic>...</le-italic> spans. Return only manuscript text with these tags for real italics, never Markdown markers.";
             if ($run->italicize) $system .= " Apply the requested italic emphasis using <le-italic>word or phrase</le-italic>.";
             else $system .= " Do not introduce new italic emphasis.";
+            $withComment = $run->book->editorial_plan !== null;
+            if ($withComment) {
+                $locale = $run->book->user->locale === 'en' ? 'English' : 'Turkish';
+                $system .= "\nResponse format override: Return ONLY JSON with edited_text (the complete edited manuscript excerpt, preserving its original language and inline tags) and comment (a short, specific editorial observation about this block in {$locale}, explaining changes or issues relevant to the chosen instructions). Never put commentary inside edited_text.";
+            }
             $formattedInput = $formatting->encode($input, $formatting->ranges($chunk->segments ?? [], false));
             $budget = $api->editingBudget($model, $formattedInput, $system, $run->reasoning_effort ?? 'low');
             $result = $api->complete($run->book->user, $run->model, $system, $formattedInput,
                 $budget['max_tokens'], $run->book, 'editing', $budget['reasoning']);
-            [$output, $italicRanges] = $formatting->decode(trim($result['text']));
+            $comment = null;
+            $editedText = $result['text'];
+            if ($withComment) {
+                $payload = json_decode(preg_replace('/^```(?:json)?\s*|\s*```$/u', '', trim($editedText)), true);
+                if (!is_array($payload) || !is_string($payload['edited_text'] ?? null) || !is_string($payload['comment'] ?? null) || trim($payload['comment']) === '') throw new \RuntimeException('suspicious_output');
+                $editedText = $payload['edited_text'];
+                $comment = mb_substr($payload['comment'], 0, 4000);
+            }
+            [$output, $italicRanges] = $formatting->decode(trim($editedText));
             if (mb_strlen($output) < mb_strlen(trim($input)) * 0.45
                 || mb_strlen($output) > max(100, mb_strlen($input) * 2.5)
                 || str_starts_with($output, '```')) {
@@ -91,7 +104,7 @@ class EditChunk implements ShouldQueue
             $segments = app(\App\Services\SourceFormatting::class)->chunk($run->book, $styledChunk);
             $segments = $formatting->apply($segments, $italicRanges, 'pending', 'ai');
             $segments = app(\App\Services\ParagraphSpacing::class)->reject($segments);
-            app(BrowserQueue::class)->commit($run->book->user_id, $this->token, function () use ($chunk, $output, $segments, $result) {
+            app(BrowserQueue::class)->commit($run->book->user_id, $this->token, function () use ($chunk, $output, $segments, $result, $comment) {
                 $locked = EditingRun::lockForUpdate()->find($this->runId);
                 if (!$locked || (!$this->chunkId && !$locked->isActive())) return;
                 if ($locked && $locked->book->active_run_id !== $locked->id) return;
@@ -101,6 +114,7 @@ class EditChunk implements ShouldQueue
                 $current->update(['output' => $output, 'segments' => $segments, 'status' => 'completed',
                     'review_settings' => null, 'review_error' => null, 'ai_edit_count' => $current->ai_edit_count + 1, 'revision' => $current->revision + 1]);
                 if (!$wasCompleted) $locked->completed_chunks++;
+                if ($comment !== null) $locked->book->editorialMessages()->create(['role' => 'assistant', 'content' => '#'.($chunk->position + 1).' — '.$comment]);
                 $locked->tokens += $result['tokens'];
                 $locked->cost += $result['cost'];
                 $locked->status = $locked->completed_chunks === $locked->total_chunks ? 'completed' : ($locked->isActive() ? 'running' : $locked->status);

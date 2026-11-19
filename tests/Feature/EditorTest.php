@@ -739,22 +739,98 @@ class EditorTest extends TestCase
         unlink($path);
     }
 
-    public function test_upload_queues_metadata_and_sends_only_first_2000_words(): void
+    public function test_upload_analyzes_only_first_5000_words_and_saves_checkbox_plan(): void
     {
         Queue::fake(); Storage::fake('local'); $this->catalog();
-        $text = implode(' ', array_fill(0, 2100, 'kelime'));
+        $text = implode(' ', array_fill(0, 5100, 'kelime'));
         $path = app(Docx::class)->export($text, $text, 'Title');
         $file = new UploadedFile($path, 'book.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', null, true);
         $user = User::factory()->create();
         $this->actingAs($user)->post('/books', ['file' => $file])->assertRedirect();
         Queue::assertNotPushed(InferBookMetadata::class);
         $book = Book::firstOrFail();
-        Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => '{"title":"Yeni Başlık","language":"tr"}']]]])]);
+        Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => '{"title":"Yeni Başlık","author":"Yazar","language":"tr","genre":"fiction","message":"Planınız","suggestions":[{"label":"Dil","instruction":"Dili düzelt."}]}']]]])]);
         (new InferBookMetadata($book->id, app(BrowserQueue::class)->claim($book->user_id)))->handle(app(OpenRouter::class), app(TextEditor::class));
         $this->assertSame('Yeni Başlık', $book->fresh()->title);
+        $this->assertSame('Yazar', $book->fresh()->author);
+        $this->assertSame('fiction', $book->fresh()->editorial_genre);
+        $this->assertSame('Dili düzelt.', $book->editorialMessages()->first()->suggestions[0]['instruction']);
+        $this->assertEmpty($book->fresh()->prompt);
         Http::assertSent(fn ($request) => str_ends_with($request->url(), '/chat/completions')
-            && app(TextEditor::class)->words($request['messages'][1]['content']) === 2000);
+            && app(TextEditor::class)->words(json_decode($request['messages'][1]['content'], true)['excerpt']) === 5000);
         unlink($path);
+    }
+
+    public function test_chat_is_queued_owned_localized_and_does_not_change_chosen_prompt(): void
+    {
+        $this->catalog();
+        $book = $this->book(); $book->user->update(['locale' => 'en']);
+        $this->actingAs(User::factory()->create())->postJson("/books/{$book->id}/chat", ['content' => 'Help'])->assertNotFound();
+        $this->actingAs($book->user)->postJson("/books/{$book->id}/chat", ['content' => 'Focus on dialogue'])->assertOk();
+        $this->postJson("/books/{$book->id}/chat", ['content' => 'Duplicate'])->assertStatus(409);
+        Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => json_encode([
+            'title' => 'Book', 'author' => null, 'language' => 'tr', 'genre' => 'fiction', 'message' => 'Consider dialogue clarity.',
+            'suggestions' => [['label' => 'Dialogue', 'instruction' => 'Clarify dialogue.']],
+        ])]]]])]);
+        app(BrowserQueue::class)->step($book->user_id);
+        $this->assertSame('Polish lightly.', $book->fresh()->prompt);
+        $this->assertSame('complete', $book->editorialMessages()->first()->status);
+        $this->getJson("/books/{$book->id}/state")->assertJsonPath('chat.1.suggestions.0.instruction', 'Clarify dialogue.');
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/chat/completions') && str_contains($request['messages'][0]['content'], 'Respond in English')
+            && str_contains($request['messages'][1]['content'], 'Focus on dialogue'));
+    }
+
+    public function test_editing_stores_block_comment_separately_from_manuscript(): void
+    {
+        $this->catalog();
+        $book = $this->book(); $book->update(['editorial_plan' => []]); $book->user->update(['locale' => 'en']);
+        $run = $this->runWithChanges($book); $run->update(['status' => 'queued', 'completed_chunks' => 0, 'prompt' => 'Fix grammar only.']);
+        $run->chunks()->update(['status' => 'pending', 'segments' => null]);
+        Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => json_encode([
+            'edited_text' => "A smooth sentence.\n\nAnother paragraph.", 'comment' => 'Corrected the sentence structure.',
+        ])]]]])]);
+        app(BrowserQueue::class)->step($book->user_id);
+        $this->assertSame('completed', $run->fresh()->status);
+        $this->assertStringNotContainsString('Corrected', $run->chunks()->first()->output);
+        $this->assertStringContainsString('Corrected the sentence structure.', $book->editorialMessages()->first()->content);
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/chat/completions') && str_contains($request['messages'][0]['content'], 'Fix grammar only.')
+            && str_contains($request['messages'][0]['content'], 'in English'));
+    }
+
+    public function test_empty_preview_cannot_resume_before_user_chooses_a_plan(): void
+    {
+        $book = $this->book(); $book->update(['prompt' => null]);
+        $this->actingAs($book->user)->getJson("/books/{$book->id}/state?all=1")->assertOk();
+        $this->postJson("/books/{$book->id}/retry")->assertStatus(422);
+        $this->assertSame('cancelled', $book->fresh()->activeRun->status);
+    }
+
+    public function test_chat_failure_can_be_retried_and_cancelled_response_is_fenced(): void
+    {
+        $this->catalog(); $book = $this->book();
+        $this->actingAs($book->user)->postJson("/books/{$book->id}/chat", ['content' => 'Suggest a plan'])->assertOk();
+        Http::fake(['*/chat/completions' => Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => 'invalid json']]]])]);
+        app(BrowserQueue::class)->step($book->user_id);
+        $this->assertSame('failed', $book->editorialMessages()->first()->status);
+        $this->postJson("/books/{$book->id}/chat", ['content' => 'Try again'])->assertOk();
+        Http::fake(['*/chat/completions' => function () use ($book) {
+            app(BrowserQueue::class)->pause($book->user_id);
+            return Http::response(['choices' => [['finish_reason' => 'stop', 'message' => ['content' => json_encode([
+                'title' => 'Title', 'author' => null, 'language' => 'en', 'genre' => 'fiction', 'message' => 'Late answer', 'suggestions' => [],
+            ])]]]]);
+        }]);
+        app(BrowserQueue::class)->step($book->user_id);
+        $this->assertSame(0, $book->editorialMessages()->where('role', 'assistant')->count());
+        $this->assertSame(1, $book->editorialMessages()->where('status', 'pending')->count());
+    }
+
+    public function test_editor_uses_side_panel_and_settings_store_thinking_preference(): void
+    {
+        $book = $this->book();
+        $this->actingAs($book->user)->get("/books/{$book->id}")->assertOk()->assertSee('id="setup-panel"', false)->assertDontSee('id="setup-dialog"', false);
+        $this->patch('/settings', ['locale' => 'en', 'theme' => 'light', 'reasoning_effort' => 'high'])->assertRedirect();
+        $this->assertSame('high', $book->user->fresh()->reasoning_effort);
+        $this->get('/settings')->assertSee('name="reasoning_effort"', false)->assertSee('name="default_model"', false);
     }
 
     public function test_editing_job_stores_plain_text_diff_and_usage(): void
